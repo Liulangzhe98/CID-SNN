@@ -1,6 +1,7 @@
 # ==== Project specific ====
 Papers-Files/
 *.pgm
+Data/
 
 # ==== Git ignore template from the gitignore repo ====
 # Byte-compiled / optimized / DLL files
