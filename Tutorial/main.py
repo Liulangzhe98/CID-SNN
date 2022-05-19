@@ -16,6 +16,8 @@ from torch import optim
 import torch.nn.functional as F
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DATA_FOLDER = "Tutorial_SNN/data/faces/"
+print(f"Using device: {device}")
 
 # Creating some helper functions
 def imshow(img, text=None):
@@ -72,7 +74,7 @@ class SiameseNetworkDataset(Dataset):
         return len(self.imageFolderDataset.imgs)
 
 # Load the training dataset
-folder_dataset = datasets.ImageFolder(root="./data/faces/training/")
+folder_dataset = datasets.ImageFolder(root=DATA_FOLDER+"training/")
 
 # Resize the images and transform to tensors
 transformation = transforms.Compose([transforms.Resize((100,100)),
@@ -169,16 +171,20 @@ train_dataloader = DataLoader(siamese_dataset,
                         batch_size=64)
 
 net = SiameseNetwork().to(device)
+print(net)
+
 criterion = ContrastiveLoss()
 optimizer = optim.Adam(net.parameters(), lr = 0.0005 )
 
 counter = []
 loss_history = [] 
 iteration_number= 0
+MAX_EPOCH = 10
 
 # Iterate throught the epochs
-for epoch in range(100):
-    print(F"Currently at epoch {epoch+1}/100", end="\r")
+for epoch in range(MAX_EPOCH):
+    #if (epoch%10 == 0):
+    print(F"Currently at epoch {epoch+1}/{MAX_EPOCH}")
 
     # Iterate over batches
     for i, (img0, img1, label) in enumerate(train_dataloader, 0):
@@ -203,7 +209,7 @@ for epoch in range(100):
 print()
 
 # Locate the test dataset and load it into the SiameseNetworkDataset
-folder_dataset_test = datasets.ImageFolder(root="./data/faces/testing/")
+folder_dataset_test = datasets.ImageFolder(root=DATA_FOLDER+"/testing/")
 siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
                                         transform=transformation)
 test_dataloader = DataLoader(siamese_dataset, num_workers=2, batch_size=1, shuffle=True)
