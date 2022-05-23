@@ -11,63 +11,63 @@ import time
 
 from SNN import *
 from helper import *
+from splitter import *
 
 # Constants
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-MAX_EPOCH = 25    # TODO: Make this into an early termination value
+#TODO: Make this change for local and peregrine usage
+MAX_EPOCH = 5         # TODO: Make this into an early termination value
+SUBSET_SIZE = 25      # Used for testing and not blowing up my laptop
 # Making sure that the program can run both locally and within peregrine
 
-
-# FIXME: Just for testing purposes untill we split the dataset
-
-DATA_FOLDER = "../Tutorial/data/faces" 
 # Resize the images and transform to tensors
-transformation = transforms.Compose([transforms.Resize((100,100)),
-                                     transforms.ToTensor()
-                                    ])
-# ==== END OF FIXME ===== 
+# TODO: The resize might remove pattern noise ???
+# TODO: (100, 100) resize makes it so that the layers are applied correctly
+transformation = transforms.Compose([
+        transforms.Resize((640,480)),
+        transforms.ToTensor()
+    ])
 
-
-# DATA_FOLDER = "Data/natural"
+DATA_FOLDER = "Dresden/natural"
 if not path.exists(DATA_FOLDER):
-    DATA_FOLDER = "Project/Data/natural"
+    DATA_FOLDER = "Project/Dresden/natural"
+
 
 def main():
     start_time = time.time()
     print(f"Working with device: {DEVICE}\nWithin the folder: {DATA_FOLDER}")
 
-    # TODO: Split the dataset in training and testing somehow
-    folder_dataset = datasets.ImageFolder(root=DATA_FOLDER+"/training")
-    folder_dataset_test = datasets.ImageFolder(root=DATA_FOLDER+"/testing")
+    train_set_dres, test_set_dres = data_splitter(Path(DATA_FOLDER), 0.8)
+   
+    train_subset = random.sample(train_set_dres, k=SUBSET_SIZE)
+    test_subset = random.sample(test_set_dres, k=SUBSET_SIZE)
 
     # Initialize the network
-    siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset,
-                                            transform=transformation)
+    siamese_dataset = DresdenSNNDataset(image_paths=train_subset, 
+                                        transform=transformation)
 
     # Load the training dataset
     # TODO: Make sure these values are working for our dataset
     train_dataloader = DataLoader(siamese_dataset,
-                            shuffle=True, num_workers=8, batch_size=64)
-    net = SiameseNetwork().to(DEVICE)
-    print(f"The SNN network summary: \n{net}")
-    train_model(net, train_dataloader, start_time)
+                            shuffle=True, num_workers=2, batch_size=64)
+    SNN_model = SiameseNetwork().to(DEVICE)
+    print(f"The SNN network summary: \n{SNN_model}")
+    train_model(SNN_model, train_dataloader, start_time)
 
     # Locate the test dataset and load it into the SiameseNetworkDataset
-    siamese_dataset = SiameseNetworkDataset(imageFolderDataset=folder_dataset_test,
-                                        transform=transformation)
+    siamese_dataset = DresdenSNNDataset(image_paths=test_subset,
+                                            transform=transformation)
     # TODO: Make sure these values are working for our dataset
     test_dataloader = DataLoader(siamese_dataset, 
                             shuffle=True, num_workers=2, batch_size=1)
 
-    test_model(net, test_dataloader)
-
-
+    test_model(SNN_model, test_dataloader)
 
 
 def test_model(net: SiameseNetwork, dataloader: DataLoader):
-    # Grab one image that we are going to test
     print(" === Testing started === ")
     print("  Lower Dissimilarity ( < 1) means they are probably from the same camera")
+    # Grab one image that we are going to test
     dataiter = iter(dataloader)
     x0, _, _, f_name0, _ = next(dataiter)
  
@@ -80,9 +80,9 @@ def test_model(net: SiameseNetwork, dataloader: DataLoader):
         
         output1, output2 = net(x0.to(DEVICE), x1.to(DEVICE))
         euclidean_distance = F.pairwise_distance(output1, output2)
-        print(f"{f_name0[0]} vs {f_name1[0]:<20}", end = " | ")
-        # Lower distance is better
-        print(f'Dissimilarity: {euclidean_distance.item():.2f}')
+
+        print(f'Dissimilarity: {euclidean_distance.item():.2f}', end = " | ")
+        print(f"{f_name0[0]} vs {f_name1[0]:<20}")
         # imshow(torchvision.utils.make_grid(concatenated), f'Dissimilarity: {euclidean_distance.item():.2f}')
 
 
@@ -101,7 +101,6 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float =
 
         # Iterate over batches
         for i, (img0, img1, label, _, _) in enumerate(dataloader, 0):
-
             # Send the images and labels to CUDA
             img0, img1, label = img0.to(DEVICE), img1.to(DEVICE), label.to(DEVICE)
 
@@ -130,9 +129,6 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float =
     print()
     # TODO: Save loss plot somehow with parameters used
     # show_plot(counter, loss_history)
-
-
-
 
 if __name__ == "__main__":
     main()                            

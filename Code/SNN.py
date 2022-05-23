@@ -5,6 +5,56 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+class DresdenSNNDataset(Dataset):
+    def __init__(self, image_paths: list,transform=None):
+        self.image_paths = image_paths  
+        # TODO: Should be in the form [(<path>, <label>0), ..., (<path>, <label>)],
+        #    where label should be stored somewhere to refer back to the name of the camera i think
+        self.transform = transform
+        
+    def __getitem__(self,index):
+        if torch.is_tensor(index):
+            idx = idx.tolist()
+        
+        img0_tuple = random.choice(self.image_paths) # (<path>, <label>)
+
+        #We need to approximately 50% of images to be in the same class
+        should_get_same_class = random.randint(0,1) 
+        if should_get_same_class:
+            while True:
+                #Look untill the same class image is found
+                img1_tuple = random.choice(self.image_paths) 
+                if img0_tuple[1] == img1_tuple[1]:
+                    break
+        else:
+            while True:
+                #Look untill a different class image is found
+                img1_tuple = random.choice(self.image_paths)
+                if img0_tuple[1] != img1_tuple[1]:
+                    break
+
+        img0 = Image.open(img0_tuple[0])
+        img1 = Image.open(img1_tuple[0])
+
+        # Convert to greyscale
+        img0 = img0.convert("L") 
+        img1 = img1.convert("L")
+
+        f_name0 = "/".join(str(img0_tuple[0]).split("/")[-2:]) # model/picture.jpg
+        f_name1 = "/".join(str(img1_tuple[0]).split("/")[-2:])
+        
+        same_label = torch.from_numpy(np.array([int(img1_tuple[1] != img0_tuple[1])], dtype=np.float32))
+
+        if self.transform is not None:
+            img0 = self.transform(img0)
+            img1 = self.transform(img1)
+        return img0, img1, same_label, f_name0, f_name1
+
+    def __len__(self):
+        return len(self.image_paths)
+
+
+
 class SiameseNetworkDataset(Dataset):
     def __init__(self,imageFolderDataset,transform=None):
         self.imageFolderDataset = imageFolderDataset    
@@ -71,7 +121,7 @@ class SiameseNetwork(nn.Module):
 
         # Setting up the Fully Connected Layers
         self.fc1 = nn.Sequential(
-            nn.Linear(384, 1024),
+            nn.Linear(336000, 1024),
             nn.ReLU(inplace=True),
             
             nn.Linear(1024, 256),
