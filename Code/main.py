@@ -8,6 +8,8 @@ import torch.nn.functional as F
 
 from os import path
 import time
+import argparse
+
 
 from SNN import *
 from helper import *
@@ -33,33 +35,38 @@ if not path.exists(DATA_FOLDER):
     DATA_FOLDER = "Project/Dresden/natural"
 
 
-def main():
+def main(args):
     start_time = time.time()
+    if getattr(args, 'dev'):
+        print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
+
     print(f"Working with device: {DEVICE}\nWithin the folder: {DATA_FOLDER}")
 
-    train_set_dres, test_set_dres = data_splitter(Path(DATA_FOLDER), 0.8)
-   
-    train_subset = random.sample(train_set_dres, k=SUBSET_SIZE)
-    test_subset = random.sample(test_set_dres, k=SUBSET_SIZE)
-
-    # Initialize the network
-    siamese_dataset = DresdenSNNDataset(image_paths=train_subset, 
-                                        transform=transformation)
+    train_set, test_set = data_splitter(Path(DATA_FOLDER), 0.8)
+    if getattr(args, 'dev'):
+        train_set = random.sample(train_set, k=SUBSET_SIZE)
+        test_set = random.sample(test_set, k=SUBSET_SIZE)
+    else:
+        # peregrine settings
+        train_set = random.sample(train_set, k=len(train_set)//4)
+        test_set = random.sample(test_set, k=len(test_set)//4) 
+        
 
     # Load the training dataset
     # TODO: Make sure these values are working for our dataset
-    train_dataloader = DataLoader(siamese_dataset,
-                            shuffle=True, num_workers=2, batch_size=64)
+    train_dataloader = DataLoader(
+        DresdenSNNDataset(image_paths=train_set, transform=transformation),
+        shuffle=True, num_workers=2, batch_size=64)
+
     SNN_model = SiameseNetwork().to(DEVICE)
+
     print(f"The SNN network summary: \n{SNN_model}")
     train_model(SNN_model, train_dataloader, start_time)
 
-    # Locate the test dataset and load it into the SiameseNetworkDataset
-    siamese_dataset = DresdenSNNDataset(image_paths=test_subset,
-                                            transform=transformation)
     # TODO: Make sure these values are working for our dataset
-    test_dataloader = DataLoader(siamese_dataset, 
-                            shuffle=True, num_workers=2, batch_size=1)
+    test_dataloader = DataLoader(
+        DresdenSNNDataset(image_paths=test_set, transform=transformation), 
+        shuffle=True, num_workers=2, batch_size=1)
 
     test_model(SNN_model, test_dataloader)
 
@@ -131,4 +138,12 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float =
     # show_plot(counter, loss_history)
 
 if __name__ == "__main__":
-    main()                            
+   
+    parser = argparse.ArgumentParser(
+        description='SNN model for camera identification')
+
+    parser.add_argument('--dev', action='store_true',
+        help='Runs in development mode')
+    parser.add_argument('--epoch' , type=int, default=25,
+        help='Determine the amount of epochs') 
+    main(parser.parse_args())                            

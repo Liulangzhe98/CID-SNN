@@ -8,7 +8,7 @@ import torch.nn as nn
 class DresdenSNNDataset(Dataset):
     def __init__(self, image_paths: list,transform=None):
         self.image_paths = image_paths  
-        # TODO: Should be in the form [(<path>, <label>0), ..., (<path>, <label>)],
+        # image_paths should be in the form [(<path>, <label>), ..., (<path>, <label>)],
         #    where label should be stored somewhere to refer back to the name of the camera i think
         self.transform = transform
         
@@ -52,52 +52,6 @@ class DresdenSNNDataset(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
-
-
-
-class SiameseNetworkDataset(Dataset):
-    def __init__(self,imageFolderDataset,transform=None):
-        self.imageFolderDataset = imageFolderDataset    
-        self.transform = transform
-        
-    # TODO: Make sure this works as intended
-    def __getitem__(self,index):
-        img0_tuple = random.choice(self.imageFolderDataset.imgs)
-
-        #We need to approximately 50% of images to be in the same class
-        should_get_same_class = random.randint(0,1) 
-        if should_get_same_class:
-            while True:
-                #Look untill the same class image is found
-                img1_tuple = random.choice(self.imageFolderDataset.imgs) 
-                if img0_tuple[1] == img1_tuple[1]:
-                    break
-        else:
-
-            while True:
-                #Look untill a different class image is found
-                img1_tuple = random.choice(self.imageFolderDataset.imgs) 
-                if img0_tuple[1] != img1_tuple[1]:
-                    break
-
-        img0 = Image.open(img0_tuple[0])
-        img1 = Image.open(img1_tuple[0])
-
-        # Convert to greyscale
-        img0 = img0.convert("L") 
-        img1 = img1.convert("L")
-
-        f_name0 = "/".join(img0_tuple[0].split("/")[-3:])
-        f_name1 = "/".join(img1_tuple[0].split("/")[-3:])
-        
-
-        if self.transform is not None:
-            img0 = self.transform(img0)
-            img1 = self.transform(img1)
-        return img0, img1, torch.from_numpy(np.array([int(img1_tuple[1] != img0_tuple[1])], dtype=np.float32)), f_name0, f_name1
-    
-    def __len__(self):
-        return len(self.imageFolderDataset.imgs)
 
 #create the Siamese Neural Network
 class SiameseNetwork(nn.Module):
