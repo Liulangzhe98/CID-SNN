@@ -18,7 +18,7 @@ from splitter import *
 # Constants
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #TODO: Make this change for local and peregrine usage
-MAX_EPOCH = 5         # TODO: Make this into an early termination value
+MAX_EPOCH = 25       # TODO: Make this into an early termination value
 SUBSET_SIZE = 25      # Used for testing and not blowing up my laptop
 # Making sure that the program can run both locally and within peregrine
 
@@ -26,7 +26,8 @@ SUBSET_SIZE = 25      # Used for testing and not blowing up my laptop
 # TODO: The resize might remove pattern noise ???
 # TODO: (100, 100) resize makes it so that the layers are applied correctly
 transformation = transforms.Compose([
-        transforms.Resize((640,480)),
+        # transforms.Resize((640,480)),
+        transforms.CenterCrop((200, 150)),
         transforms.ToTensor()
     ])
 
@@ -88,8 +89,9 @@ def test_model(net: SiameseNetwork, dataloader: DataLoader):
         output1, output2 = net(x0.to(DEVICE), x1.to(DEVICE))
         euclidean_distance = F.pairwise_distance(output1, output2)
 
-        print(f'Dissimilarity: {euclidean_distance.item():.2f}', end = " | ")
+        print(f'Dissimilarity: {euclidean_distance.item():>5.2f}', end = " | ")
         print(f"{f_name0[0]} vs {f_name1[0]:<20}")
+        save_validation_pairs(x0, x1, euclidean_distance.item(), i)
         # imshow(torchvision.utils.make_grid(concatenated), f'Dissimilarity: {euclidean_distance.item():.2f}')
 
 
