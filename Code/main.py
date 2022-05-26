@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from os import path
 import time
 import argparse
+import statistics
 
 
 from SNN import *
@@ -17,6 +18,7 @@ from splitter import *
 
 # Constants
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 #TODO: Make this change for local and peregrine usage
 MAX_EPOCH = 25       # TODO: Make this into an early termination value
 SUBSET_SIZE = 25      # Used for testing and not blowing up my laptop
@@ -27,7 +29,7 @@ SUBSET_SIZE = 25      # Used for testing and not blowing up my laptop
 # TODO: (100, 100) resize makes it so that the layers are applied correctly
 transformation = transforms.Compose([
         # transforms.Resize((640,480)),
-        transforms.CenterCrop((200, 150)),
+        transforms.CenterCrop((100, 100)),
         transforms.ToTensor()
     ])
 
@@ -46,53 +48,65 @@ def main(args):
     train_set, test_set = data_splitter(Path(DATA_FOLDER), 0.8)
     if getattr(args, 'dev'):
         train_set = random.sample(train_set, k=SUBSET_SIZE)
-        test_set = random.sample(test_set, k=SUBSET_SIZE)
+        test_set = random.sample(test_set, k=len(test_set)//25)
     else:
         # peregrine settings
         train_set = random.sample(train_set, k=len(train_set)//4)
-        test_set = random.sample(test_set, k=len(test_set)//4) 
+        test_set = random.sample(test_set, k=len(test_set)) 
         
 
     # Load the training dataset
     # TODO: Make sure these values are working for our dataset
     train_dataloader = DataLoader(
         DresdenSNNDataset(image_paths=train_set, transform=transformation),
-        shuffle=True, num_workers=2, batch_size=64)
+        shuffle=True, num_workers=8, batch_size=64)
 
     SNN_model = SiameseNetwork().to(DEVICE)
 
     print(f"The SNN network summary: \n{SNN_model}")
     train_model(SNN_model, train_dataloader, start_time)
+    torch.save(SNN_model, f"Models/model.pth")
+
+
+    # SNN_model = torch.load("Models/model.pth")
 
     # TODO: Make sure these values are working for our dataset
     test_dataloader = DataLoader(
         DresdenSNNDataset(image_paths=test_set, transform=transformation), 
         shuffle=True, num_workers=2, batch_size=1)
 
-    test_model(SNN_model, test_dataloader)
+    validate_model(SNN_model, test_dataloader)
 
 
-def test_model(net: SiameseNetwork, dataloader: DataLoader):
-    print(" === Testing started === ")
+def validate_model(net: SiameseNetwork, dataloader: DataLoader):
+    print(" === Validation results === ")
     print("  Lower Dissimilarity ( < 1) means they are probably from the same camera")
     # Grab one image that we are going to test
     dataiter = iter(dataloader)
     x0, _, _, f_name0, _ = next(dataiter)
- 
-    for i in range(10):
-        # Iterate over 10 images and test them with the first image (x0)
-        _, x1, label2, _, f_name1 = next(dataiter)
+    name = f_name0[0].split('/')[0]
 
-        # Concatenate the two images together
-        concatenated = torch.cat((x0, x1), 0)
+    same_histo = []
+    diff_histo = []
+ 
+    for i, (_, x1, label2, _, f_name1) in enumerate(dataiter, 1):
+        name_other = f_name1[0].split('/')[0]
+        # print(f"[{i:5} / {len(dataiter)-1}] : {name} vs {name_other}")
         
         output1, output2 = net(x0.to(DEVICE), x1.to(DEVICE))
         euclidean_distance = F.pairwise_distance(output1, output2)
 
-        print(f'Dissimilarity: {euclidean_distance.item():>5.2f}', end = " | ")
-        print(f"{f_name0[0]} vs {f_name1[0]:<20}")
-        save_validation_pairs(x0, x1, euclidean_distance.item(), i)
+        # print(f'Dissimilarity: {euclidean_distance.item():>5.2f}', end = " | ")
+        # print(f"{f_name0[0]} vs {f_name1[0]:<20}")
+        if name == name_other:
+            same_histo.append(euclidean_distance.item())
+        else:
+            diff_histo.append(euclidean_distance.item())
         # imshow(torchvision.utils.make_grid(concatenated), f'Dissimilarity: {euclidean_distance.item():.2f}')
+    histo_makers(same_histo, diff_histo, name)
+    print(f"  For the same camera pairs: mean = {statistics.mean(same_histo):5.2f} with std = {statistics.stdev(same_histo):5.2f}")
+    print(f"  For the diff camera pairs: mean = {statistics.mean(diff_histo):5.2f} with std = {statistics.stdev(diff_histo):5.2f}")
+
 
 
 def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float = None):
@@ -101,11 +115,10 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float =
     counter = []
     loss_history = [] 
     iteration_number = 0
-    print(" === Training started === ")
+    print(" === Training results === ")
 
     # Iterate throught the epochs
     for epoch in range(MAX_EPOCH):
-        #if (epoch%10 == 0):
         print(F"Currently at epoch {epoch+1:>{len(str(MAX_EPOCH))}}/{MAX_EPOCH} | Total time spent: {time.time()-start_time:>7.2f}s")
 
         # Iterate over batches
@@ -130,13 +143,14 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, start_time: float =
 
             # Every 10 batches print out the loss
             if i % 10 == 0 :
-                print(f" Current loss {loss_contrastive.item():.4f}\n")
+                print(f" Current loss {loss_contrastive.item():.4f}")
                 iteration_number += 10
 
                 counter.append(iteration_number)
                 loss_history.append(loss_contrastive.item())
+        print()
     print()
-    # TODO: Save loss plot somehow with parameters used
+    save_plot(counter, loss_history)
     # show_plot(counter, loss_history)
 
 if __name__ == "__main__":
@@ -148,4 +162,5 @@ if __name__ == "__main__":
         help='Runs in development mode')
     parser.add_argument('--epoch' , type=int, default=25,
         help='Determine the amount of epochs') 
+    print(type(parser.parse_args()))
     main(parser.parse_args())                            
