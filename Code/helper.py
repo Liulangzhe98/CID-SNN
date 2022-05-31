@@ -1,60 +1,91 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import torchvision
-import torch
 from os import path
-
-
-RESULT_FOLDER = "Results"
-if not path.exists(RESULT_FOLDER):
-    RESULT_FOLDER = "Project/Results"
-
-def save_validation_pairs(img_base, img_val, distance, idx=0):
-    # Concatenate the two images together
-    concatenated = torch.cat((img_base, img_val), 0)
-    torchvision.utils.make_grid(concatenated)
-
-    npimg = torchvision.utils.make_grid(concatenated)
-    plt.axis("off")
-    plt.text(80, 8, f'Dissimilarity: {distance:>5.2f}', style='italic',fontweight='bold',
-        bbox={'facecolor':'white', 'alpha':1.0, 'pad':20})
-    
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.savefig(f'{RESULT_FOLDER}/result_{idx}.png')
-    # plt.show() 
+import statistics
+import math
+import json
 
 
 # TODO: Save plot somehow with parameters used
-def save_plot(iteration, loss):
+def save_plot(iteration, loss, Folder):
     plt.title("Loss graph")
-    plt.xlabel('Batches')
-    plt.xlim(left=0)
+    plt.xlabel('Epochs')
     plt.ylabel('Loss')
-    plt.ylim(bottom=0)
     plt.plot(iteration, loss)
-    plt.savefig(f"{RESULT_FOLDER}/loss_graph.png")
+    plt.savefig(f"{Folder}/loss_graph.png")
 
 
-def histo_makers(same, diff, validate_name):
+def histo_makers(same, diff, validate_name, file):
     fig, axs = plt.subplots(2, 1)
     fig.suptitle(f'Validating against: {validate_name}')
-
+    plt.rcParams["font.family"] = "monospace"
+        
     w=0.25
 
+    for e, (name, values) in enumerate([("same", same), ("different" ,diff)]):
+        axs[e].set_title(f'Histogram of {name} camera pairs (N = {len(values)})')
+        mean, std = statistics.mean(values), statistics.stdev(values)
+    
+        axs[e].hist(values, bins=np.arange(max(0, math.floor(mean-std-w)), math.ceil(mean+std+w), w))
+        # TODO: See if i can make a zoomed version between 0 and 1
+        textstr  = f"Mean  = {mean:.4f}\n"
+        textstr += f"Stdev = {std:.4f}\n"
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
 
-    axs[0].set_title('Histogram of same camera pairs')
-    axs[0].hist(same, density=True, bins=np.arange(min(same), max(same) + w, w))
-
-
-    axs[1].set_title('Histogram of different camera pairs')
-    axs[1].hist(diff, density=True, bins=np.arange(min(diff), max(diff) + w, w))
+        axs[e].text(1.05, 0.95, textstr, transform=axs[e].transAxes, fontsize=12,
+                verticalalignment='top', bbox=props)
+        axs[e].set_ylim(top=math.ceil(axs[e].get_ylim()[1]*1.10))
+       
+        print(f"  For the {name} camera pairs: mean = {mean:.4f} with std = {std:.4f}")
     
 
     for ax in axs.flat:
-        ax.set(xlabel='Distance', ylabel='Amount (Normalized)')
+        ax.set(xlabel='Distance', ylabel='Amount ')
 
     fig.tight_layout()
-    plt.savefig("Results/histo_together.png")
+  
+    plt.savefig(file)
+
+def multiple_histo(models_checked, file):
+    amount = len(models_checked.keys())
+
+    fig, axs = plt.subplots(2, amount)
+
+    fig.set_size_inches(20, 10.5)
+    fig.suptitle(f'Validation histograms of multiple cameras')
+    plt.rcParams["font.family"] = "monospace"
+        
+    w=0.25
+    for e_out, (k, v) in enumerate(models_checked.items()):
+        for e, (name, values) in enumerate([("same", v['same']), ("different" ,v['diff'])]):
+            ax_plot = axs[e, e_out]
+            ax_plot.set_title(f'Histogram of {name} camera pairs \n(N = {len(values)})')
+            try:
+                mean, std = statistics.mean(values), statistics.stdev(values)
+            except statistics.StatisticsError:
+                mean, std = 0, 0
+            ax_plot.hist(values, bins=np.arange(max(0, math.floor(mean-std-w)), math.ceil(mean+std+w), w))
+            # TODO: See if i can make a zoomed version between 0 and 1
+            textstr  = f"{k}\n"
+            textstr += f"Mean  = {mean:.4f}\n"
+            textstr += f"Stdev = {std:.4f}\n"
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+            ax_plot.text(1.05, 0.95, textstr, transform=ax_plot.transAxes, fontsize=12,
+                    verticalalignment='top', bbox=props)
+            ax_plot.set_ylim(top=math.ceil(ax_plot.get_ylim()[1]*1.10))
+            ax_plot.set_xlim(right=w*10)
+    
+
+    for ax in axs.flat:
+        ax.set(xlabel='Distance', ylabel='Amount ')
+
+    fig.tight_layout()
+  
+    plt.savefig(file)
+
+
+# ONLY FOR LOCAL MODE
 
 # Creating some helper functions
 def imshow(img, text=None):

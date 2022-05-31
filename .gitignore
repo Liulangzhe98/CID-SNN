@@ -1,7 +1,13 @@
 # ==== Project specific ====
 Papers-Files/
-*.pgm
 Dresden/
+Code/.vscode/
+
+*.pgm
+*.png
+# SNN model
+*.pth 
+
 
 # ==== Git ignore template from the gitignore repo ====
 # Byte-compiled / optimized / DLL files
