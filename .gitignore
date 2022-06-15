@@ -2,6 +2,7 @@
 Papers-Files/
 Dresden/
 Code/.vscode/
+Code/.idea/
 
 *.pgm
 *.png

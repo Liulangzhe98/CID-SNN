@@ -10,6 +10,7 @@ import json
 def save_plot(iteration, loss, Folder):
     plt.title("Loss graph")
     plt.xlabel('Epochs')
+    plt.xticks(np.arange(min(iteration), max(iteration), step=2))
     plt.ylabel('Loss')
     plt.plot(iteration, loss)
     plt.savefig(f"{Folder}/loss_graph.png")
@@ -51,11 +52,11 @@ def multiple_histo(models_checked, file):
 
     fig, axs = plt.subplots(2, amount)
 
-    fig.set_size_inches(20, 10.5)
+    fig.set_size_inches(60, 15)
     fig.suptitle(f'Validation histograms of multiple cameras')
     plt.rcParams["font.family"] = "monospace"
         
-    w=0.25
+    w=0.10
     for e_out, (k, v) in enumerate(models_checked.items()):
         for e, (name, values) in enumerate([("same", v['same']), ("different" ,v['diff'])]):
             ax_plot = axs[e, e_out]
@@ -64,6 +65,9 @@ def multiple_histo(models_checked, file):
                 mean, std = statistics.mean(values), statistics.stdev(values)
             except statistics.StatisticsError:
                 mean, std = 0, 0
+            except TypeError:
+                mean, std = 0, 0
+                print("Broken on type error")
             ax_plot.hist(values, bins=np.arange(max(0, math.floor(mean-std-w)), math.ceil(mean+std+w), w))
             # TODO: See if i can make a zoomed version between 0 and 1
             textstr  = f"{k}\n"
@@ -74,7 +78,7 @@ def multiple_histo(models_checked, file):
             ax_plot.text(1.05, 0.95, textstr, transform=ax_plot.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props)
             ax_plot.set_ylim(top=math.ceil(ax_plot.get_ylim()[1]*1.10))
-            ax_plot.set_xlim(right=w*10)
+            ax_plot.set_xlim(right=1)
     
 
     for ax in axs.flat:
