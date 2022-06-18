@@ -1,3 +1,5 @@
+from audioop import mul
+import multiprocessing
 from torch.utils.data import Dataset
 import random
 from PIL import Image
@@ -9,19 +11,38 @@ from collections import defaultdict
 
 class DresdenSNNDataset(Dataset):
     def __init__(self, image_paths: list,transform=None):
+        
         self.image_paths = image_paths  
         # image_paths should be in the form [(<path>, <label>), ..., (<path>, <label>)],
         #    where label should be stored somewhere to refer back to the name of the camera i think
         self.transform = transform
 
-        self.dict = defaultdict(list)
-        self.images = {}
+        self.dict = multiprocessing.Manager().dict()
+        self.images = multiprocessing.Manager().dict()
+
+        # self.TODO = multiprocessing.Manager().list(range(len(image_paths)))
         
-        for e, (x, y) in enumerate(image_paths):
-            self.dict[y].append(e)
-            # Open image and convert to greyscale
-            img0 = Image.open(x).convert("L")
-            self.images[x] = (self.transform(img0))
+        # Multiprocessing the loading of the images, since it took around 40 minutes to load the whole set
+        pool = multiprocessing.Pool()
+        pool.map(self.load_images, enumerate(image_paths))
+        self.dict = dict(self.dict)
+        pool.close()
+  
+    def load_images(self, ithingy):
+       
+        idx, (path, label) = ithingy 
+        # self.TODO.remove(idx)
+        # print(f"TODO: {len(self.TODO):>5} | {path} {25*' '}", end ="\r") 
+        
+        try:
+            self.dict[label].append(idx)
+        except KeyError:
+            self.dict[label] = [idx]
+        # Open image and convert to greyscale
+        img0 = Image.open(path).convert("L")
+        self.images[path] = (self.transform(img0))
+
+       
         
     def __getitem__(self, index):
         img0_tuple = self.image_paths[index] # (<path>, <label>)
@@ -31,9 +52,11 @@ class DresdenSNNDataset(Dataset):
         if should_get_same_class:
             img1_tuple = self.image_paths[random.choice(self.dict.get(img0_tuple[1]))]
         else:
-            key = random.choice(list(self.dict.keys()-[img0_tuple[1]]))
+            selection = list(self.dict.keys())
+            selection.remove(img0_tuple[1])
+            key = random.choice(selection)
             img1_tuple = self.image_paths[random.choice(self.dict.get(key))]
-
+        
         f_name0 = "/".join(str(img0_tuple[0]).split("/")[-2:]) # model/picture.jpg
         f_name1 = "/".join(str(img1_tuple[0]).split("/")[-2:])
 
@@ -47,6 +70,10 @@ class DresdenSNNDataset(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
+
+    def print_images(self):
+        for x in self.images:
+            print(x)
    
 #create the Siamese Neural Network
 class SiameseNetwork(nn.Module):
@@ -91,7 +118,6 @@ class SiameseNetwork(nn.Module):
         output = self.cnn1(x)
         output = output.view(output.size()[0], -1)
         output = self.fc1(output)
-        print("small me")
         return output
 
     def forward(self, input1, input2):

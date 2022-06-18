@@ -4,8 +4,8 @@ from os import path
 import statistics
 import math
 import json
-
-
+import time
+  
 # TODO: Save plot somehow with parameters used
 def save_plot(iteration, loss, Folder):
     plt.title("Loss graph")
@@ -58,6 +58,8 @@ def multiple_histo(models_checked, file):
         
     w=0.10
     for e_out, (k, v) in enumerate(models_checked.items()):
+        k = "Summed" if "/" not in k else k.split("/")[2]
+
         for e, (name, values) in enumerate([("same", v['same']), ("different" ,v['diff'])]):
             ax_plot = axs[e, e_out]
             ax_plot.set_title(f'Histogram of {name} camera pairs \n(N = {len(values)})')
@@ -67,15 +69,16 @@ def multiple_histo(models_checked, file):
                 mean, std = 0, 0
             except TypeError:
                 mean, std = 0, 0
+                # print(values)
                 print("Broken on type error")
             ax_plot.hist(values, bins=np.arange(max(0, math.floor(mean-std-w)), math.ceil(mean+std+w), w))
-            # TODO: See if i can make a zoomed version between 0 and 1
+            
             textstr  = f"{k}\n"
             textstr += f"Mean  = {mean:.4f}\n"
             textstr += f"Stdev = {std:.4f}\n"
             props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
 
-            ax_plot.text(1.05, 0.95, textstr, transform=ax_plot.transAxes, fontsize=12,
+            ax_plot.text(0.6, 0.95, textstr, transform=ax_plot.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props)
             ax_plot.set_ylim(top=math.ceil(ax_plot.get_ylim()[1]*1.10))
             ax_plot.set_xlim(right=1)

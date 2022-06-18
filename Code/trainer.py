@@ -2,6 +2,8 @@
 from torch.utils.data import DataLoader
 from torch import optim
 
+import torch.nn as nn
+
 import time
 
 from SNN import *
@@ -12,8 +14,8 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
     DEVICE = config["DEVICE"]
     MAX_EPOCH = config["MAX_EPOCH"]
     net.train(True)
-    optimizer = optim.Adam(net.parameters(), lr = 0.0005)
-    loss = torch.nn.MSELoss()
+    optimizer = optim.Adam(net.parameters(), lr = 0.005)
+    loss = nn.MSELoss()
     counter = []
     loss_history = [] 
     print(" === Training results === ")
@@ -22,7 +24,7 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
     # Iterate throught the epochs
     for epoch in range(MAX_EPOCH):
         e_time = time.time()
-        # random.seed(22052022) # TODO: remove, was only for debugging
+        random.seed(22052022) # TODO: remove, was only for debugging
         print(F"Currently at epoch {epoch+1:>{len(str(MAX_EPOCH))}}/{MAX_EPOCH} | Total time spent: {time.time()-start_time:>7.2f}s")
         # Iterate over batches
         avg_loss = 0
@@ -36,6 +38,8 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
 
             # Pass in the two images into the network and obtain two outputs
             prediction = net(img0, img1)
+            print(label)
+            print(prediction)
 
             # Pass the outputs of the networks and label into the loss function
             output = loss(prediction, label)

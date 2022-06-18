@@ -45,7 +45,6 @@ def main(args):
 
     transformation = config["Transform"]['large' if getattr(args, 'large') else 'small']
 
-    print(f" - Working with device: {config['DEVICE']}\n - Within the folder: {config['DATA_FOLDER']}")
     for k, v in config.items():
         print(f" - {k} : {v}")
 
@@ -57,7 +56,7 @@ def main(args):
     
     test_set = random.sample(test_set,   k=math.floor(len(test_set)*config['SUBSET_VAL_SIZE'])) 
 
-    print(f" - Train : {len(train_set)} pairs\n - Test  : {len(test_set)} pairs")
+    print(f" - Train : {len(train_set)} images\n - Test  : {len(test_set)} images")
 
     # Load the training dataset
     # TODO: Set the right workers and batch size
@@ -65,33 +64,44 @@ def main(args):
     SNN_model = (SiameseNetworkLarger if getattr(args, 'large') else SiameseNetwork)().to(config["DEVICE"])
     print(f"The SNN architecture summary: \n{SNN_model}")
     print(f" {'='*25} ")
+    SNN_train_data = None
+    SNN_test_data = None
+    train_dataloader, test_dataloader= None, None
 
-    # TODO: Mode selection for better time usage on peregrine
     if getattr(args, 'mode') in ['create', 'both']:
         start = time.time()
         print("Pre loading train images")
-        train_dataloader = DataLoader(
-            DresdenSNNDataset(image_paths=train_set, transform=transformation),
+        SNN_train_data = DresdenSNNDataset(image_paths=train_set, transform=transformation)
+        train_dataloader = DataLoader(SNN_train_data,
             shuffle=False, num_workers=8, batch_size=64)
         print(f"Loading all images took: {time.time()-start:.4f}s")
-        train_model(SNN_model, train_dataloader, config)
-  
-    #TODO: Make a json file to keep track of the models 
-    if getattr(args, 'save'):
-        torch.save(SNN_model, f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth")
 
-    if getattr(args, 'load'):
-        SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth", map_location=config["DEVICE"])
-        
+   
     if getattr(args, 'mode') in ['validate', 'both']:
         start = time.time()
         print("Pre loading test images")
-        SNN_data = DresdenSNNDataset(image_paths=test_set, transform=transformation)
-        test_dataloader = DataLoader(
-            SNN_data,
+        SNN_test_data = DresdenSNNDataset(image_paths=test_set, transform=transformation)
+        test_dataloader = DataLoader(SNN_test_data,
             shuffle=False, num_workers=2, batch_size=1)
         print(f"Loading all images took: {time.time()-start:.4f}s")
-        # validate_model(SNN_model, test_dataloader, SNN_data, config)
+     
+
+
+
+    if getattr(args, 'mode') in ['create', 'both']:
+        train_model(SNN_model, train_dataloader, config)
+        #TODO: Make a json file to keep track of the models 
+        if getattr(args, 'save'):
+            torch.save(SNN_model, f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth")
+
+        del train_dataloader
+    
+    
+
+    if getattr(args, 'mode') in ['validate', 'both']:
+        if getattr(args, 'load'):
+            SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth", map_location=config["DEVICE"])
+        # validate_model(SNN_model, test_dataloader, SNN_test_data, config)
 
         validate_model_with_loader(SNN_model, test_dataloader, config)
 
