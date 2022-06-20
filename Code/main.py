@@ -15,6 +15,7 @@ from validator import validate_model, validate_model_with_loader
 # Constants
 config = {
     "DEVICE": torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+    "CROP_SIZE": "small",
     "MAX_EPOCH" : 20,         # TODO: Make this into an early termination value
     "SUBSET_SIZE" : 1.0,       # Used for testing and not blowing up my laptop
     "SUBSET_VAL_SIZE": 1.0,
@@ -23,7 +24,8 @@ config = {
     "MODELS_FOLDER" : "Project/Models",
     "Transform" : {
         "small": transforms.Compose([transforms.CenterCrop((100, 100)),transforms.ToTensor()]),
-        "large" : transforms.Compose([transforms.CenterCrop((200, 200)),transforms.ToTensor()]),
+        "medium" : transforms.Compose([transforms.CenterCrop((200, 200)),transforms.ToTensor()]),
+        "large" : transforms.Compose([transforms.CenterCrop((800, 800)),transforms.ToTensor()]),
     }
 }
 
@@ -34,7 +36,7 @@ def main(args):
         print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
 
         print(args)
-        config["MAX_EPOCH"] = 10
+        config["MAX_EPOCH"] = 15
         config['SUBSET_SIZE'] = 0.05
         config['SUBSET_VAL_SIZE'] = 0.1
         config["DATA_FOLDER"] = "Dresden/natural"
@@ -43,7 +45,8 @@ def main(args):
     else: # Peregrine settings
         print(" == RUNNING IN PEREGRINE MODE == ")
 
-    transformation = config["Transform"]['large' if getattr(args, 'large') else 'small']
+    transformation = config["Transform"][getattr(args, 'size')]
+    config['CROP_SIZE'] = getattr(args, "size")
 
     for k, v in config.items():
         print(f" - {k} : {v}")
@@ -61,13 +64,14 @@ def main(args):
     # Load the training dataset
     # TODO: Set the right workers and batch size
 
-    SNN_model = (SiameseNetworkLarger if getattr(args, 'large') else SiameseNetwork)().to(config["DEVICE"])
+    SNN_model = SiameseNetwork(config['CROP_SIZE']).to(config["DEVICE"])
     print(f"The SNN architecture summary: \n{SNN_model}")
     print(f" {'='*25} ")
     SNN_train_data = None
     SNN_test_data = None
     train_dataloader, test_dataloader= None, None
 
+    # ==== PRE LOADING ====
     if getattr(args, 'mode') in ['create', 'both']:
         start = time.time()
         print("Pre loading train images")
@@ -84,7 +88,7 @@ def main(args):
         test_dataloader = DataLoader(SNN_test_data,
             shuffle=False, num_workers=2, batch_size=1)
         print(f"Loading all images took: {time.time()-start:.4f}s")
-     
+    # =====================
 
 
 
@@ -92,7 +96,7 @@ def main(args):
         train_model(SNN_model, train_dataloader, config)
         #TODO: Make a json file to keep track of the models 
         if getattr(args, 'save'):
-            torch.save(SNN_model, f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth")
+            torch.save(SNN_model, f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth")
 
         del train_dataloader
     
@@ -100,10 +104,10 @@ def main(args):
 
     if getattr(args, 'mode') in ['validate', 'both']:
         if getattr(args, 'load'):
-            SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{'large' if getattr(args, 'large') else 'small'}.pth", map_location=config["DEVICE"])
-        # validate_model(SNN_model, test_dataloader, SNN_test_data, config)
+            SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth", map_location=config["DEVICE"])
+        validate_model(SNN_model, test_dataloader, SNN_test_data, config)
 
-        validate_model_with_loader(SNN_model, test_dataloader, config)
+        # validate_model_with_loader(SNN_model, test_dataloader, config)
 
 
 if __name__ == "__main__":
@@ -111,7 +115,8 @@ if __name__ == "__main__":
         description='SNN model for camera identification')
     parser.add_argument('--dev', action='store_true',
         help='Runs in development mode')
-    parser.add_argument('--large', action='store_true', 
+    parser.add_argument('--size', default='small', const='small',
+        nargs='?', choices=['small', 'medium', 'large'],
         help='Runs with larger cropped images')
     parser.add_argument('--mode', default='create', const='create',
         nargs='?', choices=['create', 'validate', 'both'],

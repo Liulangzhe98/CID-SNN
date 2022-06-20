@@ -10,7 +10,7 @@ import time
 def save_plot(iteration, loss, Folder):
     plt.title("Loss graph")
     plt.xlabel('Epochs')
-    plt.xticks(np.arange(min(iteration), max(iteration), step=2))
+    plt.xticks(np.arange(min(iteration), max(iteration)+2, step=2))
     plt.ylabel('Loss')
     plt.plot(iteration, loss)
     plt.savefig(f"{Folder}/loss_graph.png")
@@ -58,8 +58,7 @@ def multiple_histo(models_checked, file):
         
     w=0.10
     for e_out, (k, v) in enumerate(models_checked.items()):
-        k = "Summed" if "/" not in k else k.split("/")[2]
-
+       
         for e, (name, values) in enumerate([("same", v['same']), ("different" ,v['diff'])]):
             ax_plot = axs[e, e_out]
             ax_plot.set_title(f'Histogram of {name} camera pairs \n(N = {len(values)})')
@@ -81,7 +80,7 @@ def multiple_histo(models_checked, file):
             ax_plot.text(0.6, 0.95, textstr, transform=ax_plot.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props)
             ax_plot.set_ylim(top=math.ceil(ax_plot.get_ylim()[1]*1.10))
-            ax_plot.set_xlim(right=1)
+            ax_plot.set_xlim(right=1.1)
     
 
     for ax in axs.flat:

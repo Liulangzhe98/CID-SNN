@@ -22,6 +22,7 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
         cameras = set([(str(x), label) for (x, label) in image_set.image_paths])
         pre_selected = random.sample(cameras, k=9)
         for x, truth in pre_selected:
+            name = str(x).split("/")[2]
             base_image = image_set.images[PosixPath(x)]
             base_image = base_image[None, :]
             same_histo = []
@@ -34,27 +35,28 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
                 pred = net(base_image.to(device), compare_image.to(device))
     
                 # print(pred.item())
-                difference = pred.item()
+                difference = torch.tanh(pred).item()
                 # print(f"{'same' if truth == label else 'diff'} | expect: {int(truth==label)} vs real: {difference:.4f}")
                 if truth == label:
                     same_histo.append(difference)
+                    # print(f"{x:30} | {y}")
                 else:
                     diff_histo.append(difference)
             
 
             
-            models_checked[x] = {
+            models_checked[name] = {
                 "same" : same_histo,
                 "diff" : diff_histo
             }
-            print(f"  Validated : {x:<30} | {time.time()-start_time:>5.2f}s")
+            print(f"  Validated : {name:<30} | {time.time()-start_time:>5.2f}s")
             start_time = time.time()
                 
         models_checked["Summed"] = {
             "same" : [x for (_, v) in models_checked.items() for x in v['same']],
             "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
         }
-
+     
     multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new.png")
 
 def validate_model_with_loader(net: SiameseNetwork, dataloader: DataLoader, config):
@@ -86,6 +88,7 @@ def validate_model_with_loader(net: SiameseNetwork, dataloader: DataLoader, conf
 
                 if name == name_other:
                     same_histo += output1.tolist()
+                    # print(f"{f_name0[0]:30} | {f_name1[0]}")
                 else:
                     diff_histo += output1.tolist()
             models_checked[name] = {
@@ -94,10 +97,10 @@ def validate_model_with_loader(net: SiameseNetwork, dataloader: DataLoader, conf
             }
             dataiter = iter(dataloader)
 
-            models_checked["Summed"] = {
-                "same" : [x for (_, v) in models_checked.items() for x in v['same']],
-                "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
-            }
+        models_checked["Summed"] = {
+            "same" : [x for (_, v) in models_checked.items() for x in v['same']],
+            "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
+        }
 
             # histo_makers(same_histo, diff_histo, name, config["RESULT_FOLDER"]+ "/histo_together.png")  
     multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new_loader.png")
