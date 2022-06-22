@@ -14,7 +14,10 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
     DEVICE = config["DEVICE"]
     MAX_EPOCH = config["MAX_EPOCH"]
     net.train(True)
-    optimizer = optim.Adam(net.parameters(), lr = 0.0002)
+    optimizer = optim.Adam(net.parameters(), lr = 0.00025)
+    decayRate = 0.90
+    lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=decayRate)
+
     loss = nn.MSELoss()
     # loss = ContrastiveLoss()
     counter = []
@@ -24,11 +27,6 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
 
     # Iterate throught the epochs
     for epoch in range(MAX_EPOCH):
-        if epoch == 7:
-            for g in optimizer.param_groups:
-                g['lr'] = 0.0001
-
-
         e_time = time.time()
         random.seed(22052022) # TODO: remove, was only for debugging
         print(F"Currently at epoch {epoch+1:>{len(str(MAX_EPOCH))}}/{MAX_EPOCH} | Total time spent: {time.time()-start_time:>7.2f}s")
@@ -57,6 +55,7 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
 
             # Optimize
             optimizer.step()
+            
 
             avg_loss += output.item()
             # Every 10 batches print out the loss
@@ -65,6 +64,7 @@ def train_model(net: SiameseNetwork, dataloader: DataLoader, config):
                     # print(f"Result: {f1_.split('/')[0]:22} vs {f2_.split('/')[0]:22} | {pred.item():.7f} -> {correct.item()}")
            
                 print(f"   Current loss {output.item():.4f}  | Time spent so far this epoch: {time.time()-e_time:>7.2f}s")
+        lr_scheduler.step()
         print(f" Loss this epoch: {avg_loss/(i+1):.4f}")
         counter.append(epoch)
         loss_history.append(avg_loss/(i+1))

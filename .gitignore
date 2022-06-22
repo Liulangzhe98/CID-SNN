@@ -8,6 +8,7 @@ Code/.idea/
 *.png
 # SNN model
 *.pth 
+*.svg
 
 
 # ==== Git ignore template from the gitignore repo ====

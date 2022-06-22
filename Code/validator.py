@@ -1,8 +1,7 @@
 # Imports
 from pathlib import PosixPath
-from numpy import diff
-from torch import tensor
 from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 import time
 
@@ -11,10 +10,14 @@ from helper import *
 from splitter import *
 
 def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: DresdenSNNDataset,  config):
-     
     print(" === Validation results === ")
 
     net.train(False)
+
+    conf_truth = []
+    conf_pred = []
+    epsilon = 0.20
+
     with torch.no_grad():
         device = config["DEVICE"]
         start_time = time.time()
@@ -22,7 +25,7 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
         cameras = set([(str(x), label) for (x, label) in image_set.image_paths])
         pre_selected = random.sample(cameras, k=9)
         for x, truth in pre_selected:
-            name = str(x).split("/")[2]
+            name = str(x).split("/")[-2]
             base_image = image_set.images[PosixPath(x)]
             base_image = base_image[None, :]
             same_histo = []
@@ -36,15 +39,14 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
     
                 # print(pred.item())
                 difference = torch.tanh(pred).item()
+                conf_truth.append(truth == label)
+                conf_pred.append(difference < epsilon)
                 # print(f"{'same' if truth == label else 'diff'} | expect: {int(truth==label)} vs real: {difference:.4f}")
                 if truth == label:
                     same_histo.append(difference)
                     # print(f"{x:30} | {y}")
                 else:
                     diff_histo.append(difference)
-            
-
-            
             models_checked[name] = {
                 "same" : same_histo,
                 "diff" : diff_histo
@@ -57,50 +59,15 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
             "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
         }
      
-    multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new.png")
+    multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new.svg")
+    tp, fp, tn, fn = confusion(torch.Tensor(conf_pred), torch.Tensor(conf_truth))
+    print("TN, FP, FN, TP")
+    print([tn, fp, fn, tp])
+    print(f"Accuracy: {accuracy_score(conf_truth, conf_pred):.4%}")
+    print("Confusion matrix: ")
+    print(confusion_matrix(conf_truth, conf_pred, normalize='true'))
+    print("===== New scores: =====")
+    print(f"Prec:   {tp/(tp+fp):.4%}  | TP/(TP+FP)")
+    print(f"Recall: {tp/(tp+fn):.4%}  | TP/(TP+FN)")
+    
 
-def validate_model_with_loader(net: SiameseNetwork, dataloader: DataLoader, config):
-    print(" === Validation results === ")
-    device = config["DEVICE"]
-    dataiter = iter(dataloader)
-    net.train(False)
-    with torch.no_grad():
-        x0, _, _, f_name0, _ = next(dataiter)
-        name = f_name0[0].split('/')[0]
-
-        models_checked = {}
-        for i in range(8):
-            same_histo = []
-            diff_histo = []
-
-            while name in models_checked.keys():
-                x0, _, _, f_name0, _ = next(dataiter)
-                name = f_name0[0].split('/')[0]
-            
-            dataiter = iter(dataloader)
-            print(f"  Validating on : {name}")
-            
-            for _, x1, _, _, f_name1 in dataiter:
-                name_other = f_name1[0].split('/')[0]
-                output1 = net(x0.to(device), x1.to(device))
-                
-                # print(output1)
-
-                if name == name_other:
-                    same_histo += output1.tolist()
-                    # print(f"{f_name0[0]:30} | {f_name1[0]}")
-                else:
-                    diff_histo += output1.tolist()
-            models_checked[name] = {
-                "same" : np.array(same_histo).flatten(),
-                "diff" : np.array(diff_histo).flatten()
-            }
-            dataiter = iter(dataloader)
-
-        models_checked["Summed"] = {
-            "same" : [x for (_, v) in models_checked.items() for x in v['same']],
-            "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
-        }
-
-            # histo_makers(same_histo, diff_histo, name, config["RESULT_FOLDER"]+ "/histo_together.png")  
-    multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new_loader.png")

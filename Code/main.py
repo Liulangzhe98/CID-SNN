@@ -10,13 +10,13 @@ from SNN import *
 from helper import *
 from splitter import *
 from trainer import train_model
-from validator import validate_model, validate_model_with_loader
+from validator import validate_model
 
 # Constants
 config = {
     "DEVICE": torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     "CROP_SIZE": "small",
-    "MAX_EPOCH" : 20,         # TODO: Make this into an early termination value
+    "MAX_EPOCH" : 50,         # TODO: Make this into an early termination value
     "SUBSET_SIZE" : 1.0,       # Used for testing and not blowing up my laptop
     "SUBSET_VAL_SIZE": 1.0,
     "DATA_FOLDER" : "Project/Dresden/natural",
@@ -106,8 +106,6 @@ def main(args):
         if getattr(args, 'load'):
             SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth", map_location=config["DEVICE"])
         validate_model(SNN_model, test_dataloader, SNN_test_data, config)
-
-        # validate_model_with_loader(SNN_model, test_dataloader, config)
 
 
 if __name__ == "__main__":

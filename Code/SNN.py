@@ -192,8 +192,9 @@ class SiameseNetwork(nn.Module):
         # print(euclidean_distance.tolist())
         m = nn.Tanh()
         # print(m(euclidean_distance))
-
-        return m(euclidean_distance)
+        
+        #return m(euclidean_distance)
+        return torch.clamp(euclidean_distance, max=1)
         x = torch.concat(tensors=(output1, output2), dim=1)
         x = self.COMBINE(x)
         print(x)
