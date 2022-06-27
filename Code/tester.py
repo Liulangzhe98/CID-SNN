@@ -9,11 +9,9 @@ from SNN import *
 from helper import *
 from splitter import *
 
-def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: DresdenSNNDataset,  config):
-    print(" === Validation results === ")
-
+def test_model(net: SiameseNetwork, dataloader: DataLoader, image_set: DresdenSNNDataset,  config):
+    print(" === Testing results === ")
     net.train(False)
-
     conf_truth = []
     conf_pred = []
     epsilon = 0.20
@@ -51,7 +49,7 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
                 "same" : same_histo,
                 "diff" : diff_histo
             }
-            print(f"  Validated : {name:<30} | {time.time()-start_time:>5.2f}s")
+            print(f"  Tested : {name:<30} | {time.time()-start_time:>5.2f}s")
             start_time = time.time()
                 
         models_checked["Summed"] = {
@@ -67,7 +65,54 @@ def validate_model(net: SiameseNetwork, dataloader: DataLoader, image_set: Dresd
     print("Confusion matrix: ")
     print(confusion_matrix(conf_truth, conf_pred, normalize='true'))
     print("===== New scores: =====")
-    print(f"Prec:   {tp/(tp+fp):.4%}  | TP/(TP+FP)")
-    print(f"Recall: {tp/(tp+fn):.4%}  | TP/(TP+FN)")
+    print(f"Prec:   {tp/(tp+fp):>2.4%}  | TP/(TP+FP)")
+    print(f"Recall: {tp/(tp+fn):>2.4%}  | TP/(TP+FN)")
     
+def test_with_loader(net, dataloader, config):
+    net.train(False)
+    conf_truth = []
+    conf_pred = []
+    epsilon = 0.45
+    DEVICE = config["DEVICE"]
 
+    models_checked = defaultdict(lambda: defaultdict(list))
+    with torch.no_grad():
+        for i, (img0, img1, gt, f1, f2) in enumerate(dataloader, 1): #img0, img1 are list of images
+            # print(f"{i:>4} / {len(dataloader.dataset)} | {f1[0].split('/')[0]:30} vs {f2[0].split('/')[0]:30}")
+            
+            # Send the images and labels to CUDA
+            img0, img1, gt = img0.to(DEVICE), img1.to(DEVICE), gt.to(DEVICE)
+            
+            # Pass in the two images into the network and obtain two outputs
+            prediction = net(img0, img1)
+            difference = torch.tanh(prediction).item()
+            difference = torch.clamp(prediction, max=1).item()
+            conf_truth.append(gt)
+            conf_pred.append(difference < epsilon)
+
+            if gt: 
+                # The ground truth says they are different
+                models_checked[f1[0].split('/')[0]]['diff'].append(difference)
+            else:
+                models_checked[f1[0].split('/')[0]]['same'].append(difference)
+    summing = dict()
+    summing['model'] = {"same": [0], 'diff': [1]}
+    summing["Summed"] = {
+        "same" : [x for (_, v) in models_checked.items() for x in v['same']],
+        "diff" : [x for (_, v) in models_checked.items() for x in v['diff']]
+    }    
+    
+    multiple_histo(summing, config["RESULT_FOLDER"]+f"/histo_multiple_new.svg")
+    tp, fp, tn, fn = confusion(torch.Tensor(conf_pred), torch.Tensor(conf_truth))
+    print("TN, FP, FN, TP")
+    print([tn, fp, fn, tp])
+    # print(f"Accuracy: {accuracy_score(conf_truth, conf_pred):.4%}")
+    # print("Confusion matrix: ")
+    # print(confusion_matrix(conf_truth, conf_pred, normalize='true'))
+    # print("===== New scores: =====")
+    print(f"Prec:   {tp/(tp+fp):>2.4%}  | TP/(TP+FP)")
+    print(f"Recall: {tp/(tp+fn):>2.4%}  | TP/(TP+FN)")
+                
+
+
+           

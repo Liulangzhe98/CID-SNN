@@ -22,7 +22,6 @@ class DresdenSNNDataset(Dataset):
         self.images = multiprocessing.Manager().dict()
         self.leftover = multiprocessing.Manager().list(range(len(image_paths)))
         # Multiprocessing the loading of the images, since it took around 40 minutes to load the whole set
-        print(f"Amount of workers: {multiprocessing.cpu_count()}")
         pool = multiprocessing.Pool()
 
         pool.map(self.load_images, enumerate(image_paths))
@@ -31,7 +30,12 @@ class DresdenSNNDataset(Dataset):
 
     def load_images(self, ithingy):
         idx, (path, label) = ithingy
-        self.leftover.remove(idx)
+        try:
+            self.leftover.remove(idx)
+        except TypeError as e:
+            print(idx, type(idx))
+            print(e)
+            exit(25)
         if len(self.leftover)%self.printBound == 0:
             print(f"Images left: {len(self.leftover):>6}", flush=True)
 
@@ -61,14 +65,17 @@ class DresdenSNNDataset(Dataset):
         f_name0 = "/".join(str(img0_tuple[0]).split("/")[-2:])
         f_name1 = "/".join(str(img1_tuple[0]).split("/")[-2:])
 
-        # Label is a tensor of one value: 1 when the same
-        different = torch.from_numpy(
-            np.array([int(img1_tuple[1] != img0_tuple[1])], dtype=np.float32))
+        # Ground truth is a tensor of one value. 
+        # The value is 0 when the images are from the same camera, since they should have 0 difference
+        ground_truth = torch.Tensor([0. if img1_tuple[1] == img0_tuple[1] else 1.])
+        
+        # ground_truth = torch.from_numpy(
+            # np.array([int(img1_tuple[1] != img0_tuple[1])], dtype=np.float32))
 
         img0 = self.images[img0_tuple[0]]
         img1 = self.images[img1_tuple[0]]
 
-        return img0, img1, different, f_name0, f_name1
+        return img0, img1, ground_truth, f_name0, f_name1
 
     def __len__(self):
         return len(self.image_paths)
@@ -139,7 +146,6 @@ class SiameseNetwork(nn.Module):
                     nn.Linear(128, 1)
                 )
             },
-            # TODO: make for 400x400 or even bigger
             "large": {
                 "CNN": nn.Sequential(
                     nn.Conv2d(1, 96, kernel_size=20, stride=5),

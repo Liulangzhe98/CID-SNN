@@ -1,16 +1,18 @@
 # Imports
+from matplotlib import image
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import torch
 
 import time
+import datetime
 import argparse
 
 from SNN import *
 from helper import *
 from splitter import *
 from trainer import train_model
-from validator import validate_model
+from tester import *
 
 # Constants
 config = {
@@ -31,13 +33,15 @@ config = {
 
 
 def main(args):
+    BEGIN_TIME = time.time()
+
     # Init 
     if getattr(args, 'dev'): # Local settings
         print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
 
         print(args)
         config["MAX_EPOCH"] = 15
-        config['SUBSET_SIZE'] = 0.05
+        config['SUBSET_SIZE'] = 0.002
         config['SUBSET_VAL_SIZE'] = 0.1
         config["DATA_FOLDER"] = "Dresden/natural"
         config["RESULT_FOLDER"] = "Results"
@@ -51,39 +55,45 @@ def main(args):
     for k, v in config.items():
         print(f" - {k} : {v}")
 
-    train_set, test_set = data_splitter(Path(config["DATA_FOLDER"]), 0.8)
+    train_set, val_set, test_set = data_splitter(Path(config["DATA_FOLDER"]), 0.8, 0.9)
     random.seed(20052022)  
     
     train_set = random.sample(train_set, k=math.floor(len(train_set)*config['SUBSET_SIZE']))
-    # train_set = random.sample(train_set, k=10)
-    
+    val_set = random.sample(val_set,     k=math.floor(len(val_set)*config['SUBSET_SIZE']))
     test_set = random.sample(test_set,   k=math.floor(len(test_set)*config['SUBSET_VAL_SIZE'])) 
 
-    print(f" - Train : {len(train_set)} images\n - Test  : {len(test_set)} images")
+    print(f" - Train : {len(train_set):>5} images\n - Val   : {len(val_set):>5} images\n - Test  : {len(test_set):>5} images")
 
-    # Load the training dataset
-    # TODO: Set the right workers and batch size
-
+   
     SNN_model = SiameseNetwork(config['CROP_SIZE']).to(config["DEVICE"])
     print(f"The SNN architecture summary: \n{SNN_model}")
     print(f" {'='*25} ")
+
     SNN_train_data = None
-    SNN_test_data = None
-    train_dataloader, test_dataloader= None, None
+    SNN_val_data   = None
+    SNN_test_data  = None
+    train_dataloader = None
+    val_dataloader   = None
+    test_dataloader  = None
 
     # ==== PRE LOADING ====
     if getattr(args, 'mode') in ['create', 'both']:
         start = time.time()
-        print("Pre loading train images")
+        print("Pre loading training images")
         SNN_train_data = DresdenSNNDataset(image_paths=train_set, transform=transformation)
+
+        SNN_val_data   = DresdenSNNDataset(image_paths=val_set, transform=transformation)
+
         train_dataloader = DataLoader(SNN_train_data,
-            shuffle=False, num_workers=8, batch_size=64)
+            shuffle=True, num_workers=8, batch_size=32)
+        val_dataloader   = DataLoader(SNN_val_data, 
+            shuffle=False, num_workers=8, batch_size=8)
         print(f"Loading all images took: {time.time()-start:.4f}s")
 
    
-    if getattr(args, 'mode') in ['validate', 'both']:
+    if getattr(args, 'mode') in ['test', 'both']:
         start = time.time()
-        print("Pre loading test images")
+        print("Pre loading testing images")
         SNN_test_data = DresdenSNNDataset(image_paths=test_set, transform=transformation)
         test_dataloader = DataLoader(SNN_test_data,
             shuffle=False, num_workers=2, batch_size=1)
@@ -93,7 +103,7 @@ def main(args):
 
 
     if getattr(args, 'mode') in ['create', 'both']:
-        train_model(SNN_model, train_dataloader, config)
+        train_model(SNN_model, train_dataloader, val_dataloader, config)
         #TODO: Make a json file to keep track of the models 
         if getattr(args, 'save'):
             torch.save(SNN_model, f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth")
@@ -102,12 +112,14 @@ def main(args):
     
     
 
-    if getattr(args, 'mode') in ['validate', 'both']:
+    if getattr(args, 'mode') in ['test', 'both']:
         if getattr(args, 'load'):
             SNN_model = torch.load(f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth", map_location=config["DEVICE"])
-        validate_model(SNN_model, test_dataloader, SNN_test_data, config)
-
-
+        # test_model(SNN_model, test_dataloader, SNN_test_data, config)
+        test_with_loader(SNN_model, test_dataloader, config)
+   
+    print(f"Run sucessful and took: {str(datetime.timedelta(seconds=time.time()-BEGIN_TIME))[:-3]}")
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='SNN model for camera identification')
@@ -117,8 +129,8 @@ if __name__ == "__main__":
         nargs='?', choices=['small', 'medium', 'large'],
         help='Runs with larger cropped images')
     parser.add_argument('--mode', default='create', const='create',
-        nargs='?', choices=['create', 'validate', 'both'],
-        help='Create/validate model or do both (default: %(default)s)')
+        nargs='?', choices=['create', 'test', 'both'],
+        help='Create/test model or do both (default: %(default)s)')
 
     # TODO: Needs work and probably file name for loading    
     parser.add_argument('--save', action='store_true',

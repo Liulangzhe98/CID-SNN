@@ -1,3 +1,4 @@
+import random
 import matplotlib.pyplot as plt
 import numpy as np
 from os import path
@@ -34,12 +35,13 @@ def confusion(prediction, truth):
     return true_positives, false_positives, true_negatives, false_negatives
 
 # TODO: Save plot somehow with parameters used
-def save_plot(iteration, loss, Folder):
+def save_plot(iteration, loss, labels, Folder):
     plt.title("Loss graph")
     plt.xlabel('Epochs')
     plt.xticks(np.arange(min(iteration), max(iteration)+2, step=2))
     plt.ylabel('Loss')
     plt.plot(iteration, loss)
+    plt.legend(labels)
     plt.savefig(f"{Folder}/loss_graph.png")
 
 
@@ -74,7 +76,7 @@ def histo_makers(same, diff, validate_name, file):
   
     plt.savefig(file)
 
-def multiple_histo(models_checked, file):
+def multiple_histo(models_checked: dict, file):
     amount = len(models_checked.keys())
 
     fig, axs = plt.subplots(2, amount)
@@ -108,7 +110,7 @@ def multiple_histo(models_checked, file):
                     verticalalignment='top', bbox=props)
             ax_plot.set_ylim(top=math.ceil(ax_plot.get_ylim()[1]*1.10))
             ax_plot.set_xlim(right=1.1)
-    
+        
 
     for ax in axs.flat:
         ax.set(xlabel='Distance', ylabel='Amount ')
