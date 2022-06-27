@@ -148,7 +148,7 @@ class SiameseNetwork(nn.Module):
             },
             "large": {
                 "CNN": nn.Sequential(
-                    nn.Conv2d(1, 96, kernel_size=20, stride=5),
+                    nn.Conv2d(1, 96, kernel_size=10, stride=3),
                     nn.ReLU(inplace=True),
                     nn.MaxPool2d(3, stride=2),
 
@@ -160,13 +160,13 @@ class SiameseNetwork(nn.Module):
                     nn.ReLU(inplace=True)
                 ),
                 "FC": nn.Sequential(
-                    nn.Linear(24576, 8192),
+                    nn.Linear(75264, 32768),
                     nn.ReLU(inplace=True),
 
-                    nn.Linear(8192, 512),
+                    nn.Linear(32768, 4096),
                     nn.ReLU(inplace=True),
 
-                    nn.Linear(512, 128)
+                    nn.Linear(4096, 128)
                 ),
                 "SNN": nn.Sequential(
                     nn.Linear(256, 128),
