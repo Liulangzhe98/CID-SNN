@@ -58,10 +58,9 @@ def train_one_epoch(net, dataloader, loss_func, optimizer, e_time, config):
 def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     MAX_EPOCH = config["MAX_EPOCH"]
     DEVICE = config["DEVICE"]
-    optimizer = optim.Adam(net.parameters(), lr=0.0003)
-    decayRate = 0.90
+    optimizer = optim.Adam(net.parameters(), lr=config['HYPER']["LR"])
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-        optimizer, gamma=decayRate)
+        optimizer, gamma=config['HYPER']["DECAY"])
 
     loss_func = nn.MSELoss()
     counter = []

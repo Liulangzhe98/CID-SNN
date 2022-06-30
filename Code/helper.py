@@ -12,6 +12,17 @@ def my_transform(crops):
     return torch.stack([tf.ToTensor()(crop) for crop in crops])
 
 
+def create_save_object(config: dict, ID, model, transform):
+    m = config['MODELS_FOLDER']
+    SIZE = config['CROP_SIZE']
+    return {
+        "Model": f"model_{SIZE}_{ID}.pth",
+        "Transform" : transform.split('\n'),
+        "Layers": str(model).split('\n'),
+        "Params": config['HYPER'],
+
+    }
+
 def print_scores(conf_pred, conf_truth):
     tp, fp, tn, fn = confusion(conf_pred, conf_truth)
     print("TN, FP, FN, TP")

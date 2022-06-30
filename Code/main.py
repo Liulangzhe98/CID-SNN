@@ -5,6 +5,7 @@ import torch
 
 import time
 import argparse
+import json
 
 from SNN import *
 from helper import *
@@ -17,15 +18,15 @@ from tester import *
 config = {
     "DEVICE": torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     "CROP_SIZE": "small",
-    "MAX_EPOCH": 50,         
+    "MAX_EPOCH": 50,
     "SUBSET_SIZE": 1.0,       # Used for testing and not blowing up my laptop
     "SUBSET_VAL_SIZE": 1.0,
     "DATA_FOLDER": "Project/Dresden/natural",
     "RESULT_FOLDER": "Project/Results",
     "MODELS_FOLDER": "Project/Models",
     "SAVED_FILE": "Project/saved.json",
-    "HYPER" : { 
-        "LR" : 0.0003,
+    "HYPER": {
+        "LR": 0.0003,
         "DECAY": 0.90,
     }
 }
@@ -59,16 +60,29 @@ def main(args):
         config["DATA_FOLDER"] = "Dresden/natural"
         config["RESULT_FOLDER"] = "Results"
         config["MODELS_FOLDER"] = "Models"
+        config["SAVED_FILE"] = "saved.json"
     else:  # Peregrine settings
         print(" == RUNNING IN PEREGRINE MODE == ")
 
     transformation = transform[SIZE]
     config['CROP_SIZE'] = SIZE
-   
+
     for k, v in config.items():
         print(f" - {k} : {v}")
     print(f" - TRANSFORMATION :  {transformation}")
 
+    saved_object = json.load(open(config['SAVED_FILE'], "r"))
+    save_ID = len(list(filter(
+        lambda x: x.startswith(SIZE),
+        saved_object.keys())))
+    loaded_model = None
+
+    if (suffix := getattr(args, 'load')):  # There is a string after the --load
+        load_name = f"{SIZE}_{suffix}"
+        if load_name not in saved_object.keys():
+            print(f"Could not load the requested model: {load_name}")
+            exit(1)
+        loaded_model = saved_object[load_name]['Model']
 
     # Data prep
     train_set, valid_set, test_set = data_splitter(Path(config["DATA_FOLDER"]))
@@ -109,7 +123,6 @@ def main(args):
             image_paths=test_set, transform=transformation)
         print(f"Loading all images took: {time.time()-start:.4f}s")
 
-
     # Training and testing of the model
     if getattr(args, 'mode') in ['create', 'both']:
         train_dataloader = DataLoader(SNN_train_data,
@@ -119,10 +132,15 @@ def main(args):
 
         # ==== ACTUAL TRAINING OF THE MODEL====
         train_model(SNN_model, train_dataloader, valid_dataloader, config)
-        # TODO: Make a json file to keep track of the models
+
         if getattr(args, 'save'):
+            m = config['MODELS_FOLDER']
             torch.save(SNN_model,
-                       f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth")
+                       f"{m}/model_{SIZE}_{save_ID}.pth")
+            saved_object[f"{SIZE}_{save_ID}"] = create_save_object(
+                config, save_ID, SNN_model, str(transformation))
+
+            json.dump(saved_object, open(config["SAVED_FILE"], "w"), indent=2)
 
     if getattr(args, 'mode') in ['test', 'both']:
         test_dataloader = DataLoader(SNN_test_data,
@@ -131,7 +149,7 @@ def main(args):
         # ==== ACTUAL TESTING OF THE MODEL ====
         if getattr(args, 'load'):
             SNN_model = torch.load(
-                f"{config['MODELS_FOLDER']}/model_{getattr(args, 'size')}.pth",
+                f"{config['MODELS_FOLDER']}/{loaded_model}",
                 map_location=config["DEVICE"])
         test_with_loader(SNN_model, test_dataloader, config)
 
@@ -151,7 +169,7 @@ if __name__ == "__main__":
     # TODO: Needs work and probably file name for loading
     parser.add_argument('--save', action='store_true',
                         help='Stores the model in the Models folder and keeps track of the parameters used')
-    parser.add_argument('--load', action='store_true',
+    parser.add_argument('--load', nargs='?', const=None, default=None,
                         help='Loads the model in the Models folder and keeps track of the parameters used')
 
     main(parser.parse_args())
