@@ -1,13 +1,12 @@
-from audioop import mul
+# Imports
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 import multiprocessing
 from torch.utils.data import Dataset
 import random
 from PIL import Image
-import torch
-import numpy as np
-import torch.nn as nn
-
-from collections import defaultdict
 
 
 class DresdenSNNDataset(Dataset):
@@ -36,7 +35,7 @@ class DresdenSNNDataset(Dataset):
             print(idx, type(idx))
             print(e)
             exit(25)
-        if len(self.leftover)%self.printBound == 0:
+        if len(self.leftover) % self.printBound == 0:
             print(f"Images left: {len(self.leftover):>6}", flush=True)
 
         try:
@@ -65,12 +64,10 @@ class DresdenSNNDataset(Dataset):
         f_name0 = "/".join(str(img0_tuple[0]).split("/")[-2:])
         f_name1 = "/".join(str(img1_tuple[0]).split("/")[-2:])
 
-        # Ground truth is a tensor of one value. 
-        # The value is 0 when the images are from the same camera, since they should have 0 difference
-        ground_truth = torch.Tensor([0. if img1_tuple[1] == img0_tuple[1] else 1.])
-        
-        # ground_truth = torch.from_numpy(
-            # np.array([int(img1_tuple[1] != img0_tuple[1])], dtype=np.float32))
+        # Ground truth is a tensor of one value.
+        # Could be changed into img0 != img1, however this expression is a bit more clear
+        ground_truth = torch.Tensor(
+            [0. if img1_tuple[1] == img0_tuple[1] else 1.])
 
         img0 = self.images[img0_tuple[0]]
         img1 = self.images[img1_tuple[0]]
@@ -80,105 +77,13 @@ class DresdenSNNDataset(Dataset):
     def __len__(self):
         return len(self.image_paths)
 
-    def print_images(self):
-        for x in self.images:
-            print(x)
 
 # create the Siamese Neural Network
 class SiameseNetwork(nn.Module):
     def __init__(self, size):
         super(SiameseNetwork, self).__init__()
-        self.size = size
-        self.nets = {
-            "small": {
-                "CNN": nn.Sequential(
-                    nn.Conv2d(1, 96, kernel_size=11, stride=4),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(3, stride=2),
-
-                    nn.Conv2d(96, 256, kernel_size=5, stride=1),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(2, stride=2),
-
-                    nn.Conv2d(256, 384, kernel_size=3, stride=1),
-                    nn.ReLU(inplace=True)
-                ),
-                "FC": nn.Sequential(
-                    nn.Linear(384, 1024),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(1024, 256),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(256, 128)
-                ),
-                "SNN": nn.Sequential(
-                    nn.Linear(256, 128),
-                    nn.ReLU(inplace=True),
-                    nn.Linear(128, 1)
-                )
-            },
-            "medium": {
-                "CNN": nn.Sequential(
-                    nn.Conv2d(1, 96, kernel_size=20, stride=5),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(3, stride=2),
-
-                    nn.Conv2d(96, 256, kernel_size=5, stride=1),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(2, stride=2),
-
-                    nn.Conv2d(256, 384, kernel_size=3, stride=1),
-                    nn.ReLU(inplace=True)
-                ),
-                "FC": nn.Sequential(
-                    nn.Linear(9600, 1024),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(1024, 256),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(256, 128)
-                ),
-                "SNN": nn.Sequential(
-                    nn.Linear(256, 128),
-                    nn.ReLU(inplace=True),
-                    nn.Linear(128, 1)
-                )
-            },
-            "large": {
-                "CNN": nn.Sequential(
-                    nn.Conv2d(1, 96, kernel_size=10, stride=3),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(3, stride=2),
-
-                    nn.Conv2d(96, 256, kernel_size=10, stride=4),
-                    nn.ReLU(inplace=True),
-                    nn.MaxPool2d(2, stride=2),
-
-                    nn.Conv2d(256, 384, kernel_size=2, stride=1),
-                    nn.ReLU(inplace=True)
-                ),
-                "FC": nn.Sequential(
-                    nn.Linear(75264, 32768),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(32768, 4096),
-                    nn.ReLU(inplace=True),
-
-                    nn.Linear(4096, 128)
-                ),
-                "SNN": nn.Sequential(
-                    nn.Linear(256, 128),
-                    nn.ReLU(inplace=True),
-                    nn.Linear(128, 1)
-                )
-            }
-        }
-        print(self.size)
-        self.CNN = self.nets[self.size]['CNN']
-        self.FC = self.nets[self.size]['FC']
-        self.COMBINE = self.nets[self.size]['SNN']
+        # Select the wanted layers via the local function
+        getattr(self, size)()
 
     def forward_once(self, x):
         # This function will be called for both images
@@ -191,38 +96,83 @@ class SiameseNetwork(nn.Module):
     def forward(self, input1, input2):
         # In this function we pass in both images and obtain both vectors
         # which are returned
-        output1 = self.forward_once(input1)
-        output2 = self.forward_once(input2)
+        bs, ncrops, c, h, w = input1.size()
+        output1 = self.forward_once(input1.view(-1, c, h, w))
 
-        euclidean_distance = nn.functional.pairwise_distance(output1, output2, keepdim = True)
-        # print(euclidean_distance.tolist())
-        m = nn.Tanh()
-        # print(m(euclidean_distance))
-        
-        #return m(euclidean_distance)
+        output2 = self.forward_once(input2.view(-1, c, h, w))
+
+        # Calculated the similarity through the euclidean distance
+        euclidean_distance = F.pairwise_distance(
+            output1, output2, keepdim=True).view(bs, ncrops, -1).mean(1)
+
         return torch.clamp(euclidean_distance, max=1)
-        x = torch.concat(tensors=(output1, output2), dim=1)
-        x = self.COMBINE(x)
-        print(x)
-        x = torch.sigmoid(x)
 
-        return x
+    # LAYERS
+    def small(self):
+        self.CNN = nn.Sequential(
+            nn.Conv2d(1, 96, kernel_size=11, stride=4),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
 
+            nn.Conv2d(96, 256, kernel_size=5, stride=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
 
-# Define the Contrastive Loss Function
-class ContrastiveLoss(torch.nn.Module):
-    def __init__(self, margin=2.0):
-        super(ContrastiveLoss, self).__init__()
-        self.margin = margin
+            nn.Conv2d(256, 384, kernel_size=3, stride=1),
+            nn.ReLU(inplace=True)
+        )
+        self.FC = nn.Sequential(
+            nn.Linear(384, 1024),
+            nn.ReLU(inplace=True),
 
-    def forward(self, pred, truth):
-        squaredPreds = torch.pow(pred, 2)
-        squaredMargin = torch.pow(torch.clamp(self.margin-pred, 0), 2)
+            nn.Linear(1024, 256),
+            nn.ReLU(inplace=True),
 
-        loss_contrastive = torch.mean(
-            truth*squaredPreds + (1-truth)*squaredMargin)
+            nn.Linear(256, 128)
+        )
 
-    #   loss_contrastive = torch.mean(
-    #         (1-truth) * torch.pow(pred, 2) +
-    #         (truth) * torch.pow(torch.clamp(self.margin - pred, min=0.0), 2))
-        return loss_contrastive
+    def medium(self):
+        self.CNN = nn.Sequential(
+            nn.Conv2d(1, 96, kernel_size=7, stride=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
+
+            nn.Conv2d(96, 160, kernel_size=5, stride=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(160, 256, kernel_size=5, stride=2),
+            nn.ReLU(inplace=True)
+        )
+        self.FC = nn.Sequential(
+            nn.Linear(25600, 8192),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(8192, 512),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(512, 128)
+        )
+
+    def large(self):
+        self.CNN = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=7, stride=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
+
+            nn.Conv2d(64, 192, kernel_size=5, stride=2),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(192, 256, kernel_size=5, stride=2),
+            nn.ReLU(inplace=True)
+        )
+        self.FC = nn.Sequential(
+            nn.Linear(123904, 32768),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(32768, 4096),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(4096, 128)
+        )
