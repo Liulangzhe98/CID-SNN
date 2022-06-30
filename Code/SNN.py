@@ -96,14 +96,13 @@ class SiameseNetwork(nn.Module):
     def forward(self, input1, input2):
         # In this function we pass in both images and obtain both vectors
         # which are returned
-        bs, ncrops, c, h, w = input1.size()
-        output1 = self.forward_once(input1.view(-1, c, h, w))
+        output1 = self.forward_once(input1)
 
-        output2 = self.forward_once(input2.view(-1, c, h, w))
+        output2 = self.forward_once(input2)
 
         # Calculated the similarity through the euclidean distance
         euclidean_distance = F.pairwise_distance(
-            output1, output2, keepdim=True).view(bs, ncrops, -1).mean(1)
+            output1, output2, keepdim=True)
 
         return torch.clamp(euclidean_distance, max=1)
 
@@ -156,22 +155,23 @@ class SiameseNetwork(nn.Module):
 
     def large(self):
         self.CNN = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=7, stride=1),
+            nn.Conv2d(1, 64, kernel_size=8, stride=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2),
 
-            nn.Conv2d(64, 192, kernel_size=5, stride=2),
+            nn.Conv2d(64, 192, kernel_size=16, stride=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2, stride=2),
 
-            nn.Conv2d(192, 256, kernel_size=5, stride=2),
+            nn.Conv2d(192, 64, kernel_size=10, stride=2),
             nn.ReLU(inplace=True)
         )
+
         self.FC = nn.Sequential(
-            nn.Linear(123904, 32768),
+            nn.Linear(20736, 16384),
             nn.ReLU(inplace=True),
 
-            nn.Linear(32768, 4096),
+            nn.Linear(16384, 4096),
             nn.ReLU(inplace=True),
 
             nn.Linear(4096, 128)

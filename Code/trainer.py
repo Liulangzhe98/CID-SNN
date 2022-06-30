@@ -47,7 +47,7 @@ def train_one_epoch(net, dataloader, loss_func, optimizer, e_time, config):
             torch.cuda.synchronize()
 
         # Every 100 batches print out the loss
-        if i % 10 == 0:
+        if i % 100 == 0:
             print(
                 f"   Current loss {loss.item():.4f} |"
                 f" Time spent so far this epoch: {time.time()-e_time:>7.2f}s")
@@ -58,7 +58,7 @@ def train_one_epoch(net, dataloader, loss_func, optimizer, e_time, config):
 def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     MAX_EPOCH = config["MAX_EPOCH"]
     DEVICE = config["DEVICE"]
-    optimizer = optim.Adam(net.parameters(), lr=0.0006)
+    optimizer = optim.Adam(net.parameters(), lr=0.0003)
     decayRate = 0.90
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
         optimizer, gamma=decayRate)
@@ -105,4 +105,4 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
         print()
     save_plot(counter, loss_history, [
               "Avg loss (Train)", "Avg loss (Val)"], config["RESULT_FOLDER"])
-    print(optimizer.param_groups())
+   

@@ -17,31 +17,38 @@ from tester import *
 config = {
     "DEVICE": torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     "CROP_SIZE": "small",
-    "MAX_EPOCH": 30,         
+    "MAX_EPOCH": 50,         
     "SUBSET_SIZE": 1.0,       # Used for testing and not blowing up my laptop
     "SUBSET_VAL_SIZE": 1.0,
     "DATA_FOLDER": "Project/Dresden/natural",
     "RESULT_FOLDER": "Project/Results",
     "MODELS_FOLDER": "Project/Models",
+    "SAVED_FILE": "Project/saved.json",
+    "HYPER" : { 
+        "LR" : 0.0003,
+        "DECAY": 0.90,
+    }
 }
 transform = {
     "small":  tf.Compose([
-        tf.FiveCrop((100, 100)),
-        tf.Lambda(my_transform)
+        tf.CenterCrop((100, 100)),
+        tf.ToTensor()
     ]),
     "medium": tf.Compose([
-        tf.FiveCrop((200, 200)),
-        tf.Lambda(my_transform)
+        tf.CenterCrop((200, 200)),
+        tf.ToTensor()
     ]),
     "large":  tf.Compose([
-        tf.FiveCrop((400, 400)),
-        tf.Lambda(my_transform)
+        tf.CenterCrop((400, 400)),
+        tf.ToTensor()
     ])
 }
 
 
 def main(args):
     # Init
+    SIZE = getattr(args, "size")
+
     if getattr(args, 'dev'):  # Local settings
         print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
 
@@ -55,9 +62,9 @@ def main(args):
     else:  # Peregrine settings
         print(" == RUNNING IN PEREGRINE MODE == ")
 
-    transformation = transform[getattr(args, 'size')]
-    config['CROP_SIZE'] = getattr(args, "size")
-
+    transformation = transform[SIZE]
+    config['CROP_SIZE'] = SIZE
+   
     for k, v in config.items():
         print(f" - {k} : {v}")
     print(f" - TRANSFORMATION :  {transformation}")
@@ -79,7 +86,7 @@ def main(args):
         f" - Val   : {len(valid_set):>5} images\n"
         f" - Test  : {len(test_set):>5} images\n")
 
-    SNN_model = SiameseNetwork(config['CROP_SIZE']).to(config["DEVICE"])
+    SNN_model = SiameseNetwork(SIZE).to(config["DEVICE"])
     print(f"The SNN architecture summary: \n{SNN_model}")
     print(f" {'='*25} ")
 
