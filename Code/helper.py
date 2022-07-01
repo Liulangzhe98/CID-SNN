@@ -25,10 +25,16 @@ def create_save_object(config: dict, ID, model, transform):
 
 def print_scores(conf_pred, conf_truth):
     tp, fp, tn, fn = confusion(conf_pred, conf_truth)
+
+    prec = tp/(tp+fp)
+    recall = tp/(tp+fn)
+
     print("TN, FP, FN, TP")
     print([tn, fp, fn, tp])
-    print(f"Prec:   {tp/(tp+fp):>2.4%}  | TP/(TP+FP)")
-    print(f"Recall: {tp/(tp+fn):>2.4%}  | TP/(TP+FN)")
+    print(f"Acc   : {(tp+tn)/(tp+fp+fn+tn):>3.4%}  | (TP+TN)/(TP+FP+FN+TN)")
+    print(f"Prec  : {prec:>3.4%}  | TP/(TP+FP)")
+    print(f"Recall: {recall:>3.4%}  | TP/(TP+FN)")
+    print(f"Fscore: {2*(recall*prec)/(recall+prec):>3.4%}")
 
 
 

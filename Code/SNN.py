@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms as tf
 
 import multiprocessing
 from torch.utils.data import Dataset
@@ -27,6 +28,7 @@ class DresdenSNNDataset(Dataset):
         self.dict = dict(self.dict)
         pool.close()
 
+    
     def load_images(self, ithingy):
         idx, (path, label) = ithingy
         try:
@@ -69,8 +71,24 @@ class DresdenSNNDataset(Dataset):
         ground_truth = torch.Tensor(
             [0. if img1_tuple[1] == img0_tuple[1] else 1.])
 
+
+        
         img0 = self.images[img0_tuple[0]]
         img1 = self.images[img1_tuple[0]]
+
+
+        # Perform Vertical or Horizontal flip
+        if random.randint(0,1):
+            # Half of the batches will be flipped
+            if random.randint(0,1):
+                rotation = tf.RandomHorizontalFlip(p=1)
+                img0 = rotation(img0)
+                img1 = rotation(img1)
+            else:
+                rotation = tf.RandomVerticalFlip(p=1)
+                img0 = rotation(img0)
+                img1 = rotation(img1)
+
 
         return img0, img1, ground_truth, f_name0, f_name1
 
@@ -84,6 +102,8 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         # Select the wanted layers via the local function
         getattr(self, size)()
+        self.dropout = nn.Dropout(p=0.3)
+
 
     def forward_once(self, x):
         # This function will be called for both images
@@ -91,6 +111,7 @@ class SiameseNetwork(nn.Module):
         output = self.CNN(x)
         output = output.view(output.size()[0], -1)
         output = self.FC(output)
+        output = self.dropout(output)
         return output
 
     def forward(self, input1, input2):
@@ -155,24 +176,24 @@ class SiameseNetwork(nn.Module):
 
     def large(self):
         self.CNN = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=8, stride=1),
+            nn.Conv2d(1, 96, kernel_size=20, stride=5),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2),
 
-            nn.Conv2d(64, 192, kernel_size=16, stride=2),
+            nn.Conv2d(96, 256, kernel_size=10, stride=4),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2, stride=2),
 
-            nn.Conv2d(192, 64, kernel_size=10, stride=2),
+            nn.Conv2d(256, 384, kernel_size=2, stride=1),
             nn.ReLU(inplace=True)
         )
 
         self.FC = nn.Sequential(
-            nn.Linear(20736, 16384),
+            nn.Linear(24576, 8192),
             nn.ReLU(inplace=True),
 
-            nn.Linear(16384, 4096),
+            nn.Linear(8192, 1024),
             nn.ReLU(inplace=True),
 
-            nn.Linear(4096, 128)
+            nn.Linear(1024, 128)
         )

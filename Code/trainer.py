@@ -65,6 +65,7 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     loss_func = nn.MSELoss()
     counter = []
     loss_history = []
+    delta_loss = []
 
     print(" === Training results === ")
     start_time = time.time()
@@ -102,6 +103,16 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
         counter.append(epoch)
         loss_history.append((avg_loss, avg_vloss.item()))
         print()
+        delta_loss.append((avg_loss, avg_vloss.item()))
+
+        # Keeping track of the last 5 loss values and decide on early stopping
+        if len(delta_loss) == 5:
+            stdevs = np.std(np.array(delta_loss), axis=0)
+            if all([x < 0.001 for x in  stdevs]):
+                print("Early stopping")
+                break
+            delta_loss.pop(0)
+
     save_plot(counter, loss_history, [
               "Avg loss (Train)", "Avg loss (Val)"], config["RESULT_FOLDER"])
    

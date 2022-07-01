@@ -26,7 +26,7 @@ config = {
     "MODELS_FOLDER": "Project/Models",
     "SAVED_FILE": "Project/saved.json",
     "HYPER": {
-        "LR": 0.0003,
+        "LR": 0.00025,
         "DECAY": 0.90,
     }
 }
@@ -40,7 +40,7 @@ transform = {
         tf.ToTensor()
     ]),
     "large":  tf.Compose([
-        tf.CenterCrop((400, 400)),
+        tf.CenterCrop((800, 800)),
         tf.ToTensor()
     ])
 }
@@ -54,8 +54,8 @@ def main(args):
         print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
 
         print(args)
-        config["MAX_EPOCH"] = 5
-        config['SUBSET_SIZE'] = 0.002
+        config["MAX_EPOCH"] = 15
+        config['SUBSET_SIZE'] = 0.02
         config['SUBSET_VAL_SIZE'] = 0.1
         config["DATA_FOLDER"] = "Dresden/natural"
         config["RESULT_FOLDER"] = "Results"
@@ -137,6 +137,7 @@ def main(args):
             m = config['MODELS_FOLDER']
             torch.save(SNN_model,
                        f"{m}/model_{SIZE}_{save_ID}.pth")
+            print(f"Saving the model at: {m}/model_{SIZE}_{save_ID}.pth")
             saved_object[f"{SIZE}_{save_ID}"] = create_save_object(
                 config, save_ID, SNN_model, str(transformation))
 
