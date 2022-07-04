@@ -17,6 +17,7 @@ from tester import *
 # Constants
 config = {
     "DEVICE": torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
+    "UID" : 0,
     "CROP_SIZE": "small",
     "MAX_EPOCH": 50,
     "SUBSET_SIZE": 1.0,       # Used for testing and not blowing up my laptop
@@ -26,7 +27,7 @@ config = {
     "MODELS_FOLDER": "Project/Models",
     "SAVED_FILE": "Project/saved.json",
     "HYPER": {
-        "LR": 0.00025,
+        "LR": 0.0002,
         "DECAY": 0.90,
     }
 }
@@ -49,6 +50,9 @@ transform = {
 def main(args):
     # Init
     SIZE = getattr(args, "size")
+
+
+    config['UID'] = getattr(args, 'ID')[0]
 
     if getattr(args, 'dev'):  # Local settings
         print("\u001b[31m == RUNNING IN DEV MODE == \u001b[0m")
@@ -167,10 +171,12 @@ if __name__ == "__main__":
                         nargs='?', choices=['create', 'test', 'both'],
                         help='Create/test model or do both (default: %(default)s)')
 
-    # TODO: Needs work and probably file name for loading
     parser.add_argument('--save', action='store_true',
                         help='Stores the model in the Models folder and keeps track of the parameters used')
     parser.add_argument('--load', nargs='?', const=None, default=None,
                         help='Loads the model in the Models folder and keeps track of the parameters used')
+    parser.add_argument('--ID', nargs=1, required=True, 
+                        help="Used for storing the log ID into the save file")
+
 
     main(parser.parse_args())

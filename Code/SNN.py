@@ -36,7 +36,6 @@ class DresdenSNNDataset(Dataset):
         except TypeError as e:
             print(idx, type(idx))
             print(e)
-            exit(25)
         if len(self.leftover) % self.printBound == 0:
             print(f"Images left: {len(self.leftover):>6}", flush=True)
 
@@ -102,8 +101,7 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         # Select the wanted layers via the local function
         getattr(self, size)()
-        self.dropout = nn.Dropout(p=0.3)
-
+     
 
     def forward_once(self, x):
         # This function will be called for both images
@@ -111,7 +109,6 @@ class SiameseNetwork(nn.Module):
         output = self.CNN(x)
         output = output.view(output.size()[0], -1)
         output = self.FC(output)
-        output = self.dropout(output)
         return output
 
     def forward(self, input1, input2):

@@ -58,6 +58,7 @@ def train_one_epoch(net, dataloader, loss_func, optimizer, e_time, config):
 def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     MAX_EPOCH = config["MAX_EPOCH"]
     DEVICE = config["DEVICE"]
+    UID = config['UID']
     optimizer = optim.Adam(net.parameters(), lr=config['HYPER']["LR"])
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
         optimizer, gamma=config['HYPER']["DECAY"])
@@ -113,6 +114,6 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
                 break
             delta_loss.pop(0)
 
-    save_plot(counter, loss_history, [
-              "Avg loss (Train)", "Avg loss (Val)"], config["RESULT_FOLDER"])
+    save_plot(counter, loss_history, ["Avg loss (Train)", "Avg loss (Val)"], 
+        f'{config["RESULT_FOLDER"]}/loss_graph_{UID}.png')
    

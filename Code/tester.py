@@ -36,17 +36,19 @@ def test_with_loader(net, dataloader, config):
             pred_label = 0. if difference < epsilon else 1
             conf_pred.append(pred_label)
            
+            basename = "_".join(str(f1[0]).split("_")[:2])
             if gt:
                 # The ground truth says they are different
-                models_checked[f1[0].split('/')[0]]['diff'].append(difference)
+                models_checked[basename]['diff'].append(difference)
             else:
-                models_checked[f1[0].split('/')[0]]['same'].append(difference)
+                models_checked[basename]['same'].append(difference)
     models_checked["Summed"] = {
         "same": [x for (_, v) in models_checked.items() for x in v['same']],
         "diff": [x for (_, v) in models_checked.items() for x in v['diff']]
     }
 
-    multiple_histo(models_checked, config["RESULT_FOLDER"]+f"/histo_multiple_new.svg")
-    summed_histo(models_checked["Summed"],
-                 config["RESULT_FOLDER"]+f"/histo_summed.svg")
+    multiple_histo(models_checked, epsilon, 
+            config["RESULT_FOLDER"]+f"/histo_multiple_{config['UID']}.svg")
+    summed_histo(models_checked["Summed"], epsilon,
+            config["RESULT_FOLDER"]+f"/histo_summed_{config['UID']}.svg")
     print_scores(torch.Tensor(conf_pred), torch.Tensor(conf_truth))
