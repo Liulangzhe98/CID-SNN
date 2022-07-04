@@ -55,6 +55,23 @@ def train_one_epoch(net, dataloader, loss_func, optimizer, e_time, config):
     return running_loss / i
 
 
+def validation(net, DEVICE, v_data, loss_func):
+    running_vloss = 0.0
+
+    with torch.no_grad():
+        # img0, img1 and label are list of images
+        i = 0
+        for i, (img0, img1, label, f1, f2) in enumerate(v_data, 1):
+            img0, img1, label = img0.to(DEVICE), img1.to(
+                DEVICE), label.to(DEVICE)
+            prediction = net(img0, img1)
+            vloss = loss_func(prediction, label)
+            running_vloss += vloss
+
+    return running_vloss / i
+
+
+
 def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     MAX_EPOCH = config["MAX_EPOCH"]
     DEVICE = config["DEVICE"]
@@ -66,7 +83,10 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
     loss_func = nn.MSELoss()
     counter = []
     loss_history = []
-    delta_loss = []
+    
+    the_last_loss = 100
+    patience = 2
+    trigger_times = 0
 
     print(" === Training results === ")
     start_time = time.time()
@@ -83,36 +103,24 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config):
             net, t_data, loss_func, optimizer, time.time(), config)
 
         net.train(False)
-        running_vloss = 0.0
-
-        with torch.no_grad():
-            # img0, img1 and label are list of images
-            for i, (img0, img1, label, f1, f2) in enumerate(v_data, 1):
-                img0, img1, label = img0.to(DEVICE), img1.to(
-                    DEVICE), label.to(DEVICE)
-                prediction = net(img0, img1)
-                vloss = loss_func(prediction, label)
-                running_vloss += vloss
-
-                if i % 10 == 0:
-                    torch.cuda.empty_cache()
-
-        avg_vloss = running_vloss / i
-        print(f"Loss T: {avg_loss:.4f} | Loss V: {avg_vloss:.4f}")
+        avg_vloss = validation(net, DEVICE, v_data, loss_func)
 
         lr_scheduler.step()
         counter.append(epoch)
         loss_history.append((avg_loss, avg_vloss.item()))
-        print()
-        delta_loss.append((avg_loss, avg_vloss.item()))
+        print(f"Loss T: {avg_loss:.4f} | Loss V: {avg_vloss:.4f}")
 
-        # Keeping track of the last 5 loss values and decide on early stopping
-        if len(delta_loss) == 5:
-            stdevs = np.std(np.array(delta_loss), axis=0)
-            if all([x < 0.001 for x in  stdevs]):
-                print("Early stopping")
-                break
-            delta_loss.pop(0)
+        if avg_vloss > the_last_loss:
+            trigger_times += 1
+            print('Trigger Times:', trigger_times)
+
+            if trigger_times >= patience:
+                print('Early Stopping!\nStart to test process.')
+                return
+        the_last_loss = avg_vloss
+
+    
+        print()
 
     save_plot(counter, loss_history, ["Avg loss (Train)", "Avg loss (Val)"], 
         f'{config["RESULT_FOLDER"]}/loss_graph_{UID}.png')
