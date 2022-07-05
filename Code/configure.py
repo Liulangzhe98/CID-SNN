@@ -35,7 +35,7 @@ class Configure(object):
 
     def __init__(self, args) -> None:
         self.CROP_SIZE = getattr(args, 'size')
-        self.UID = getattr(args, 'ID')[0]
+        self.LOAD_ID = getattr(args, 'ID')[0]
         self.Transform = self.possible_transforms[self.CROP_SIZE]
 
         if getattr(args, 'dev'):  # Local settings
@@ -62,10 +62,14 @@ class Configure(object):
             self.SAVED_EXPERIMENTS = "Project/experiments.json"
 
         # Read previously done experiments file and create a new key for the model
-        saved_object = json.load(open(self.SAVED_EXPERIMENTS, "r"))
-        exp_id = len(list(filter(
-            lambda x: x.startswith(self.CROP_SIZE),
-            saved_object.keys())))
+        with open(self.SAVED_EXPERIMENTS, "r") as f:
+            try:
+                saved_object = json.load(f)
+                exp_id = len(list(filter(
+                    lambda x: x.startswith(self.CROP_SIZE),
+                    saved_object.keys())))
+            except json.JSONDecodeError:
+                exp_id = 0
         
         self.EXP_ID = f"{self.CROP_SIZE}_{exp_id}"
         
@@ -79,9 +83,9 @@ class Configure(object):
 
         # File names
         self.SAVE_MODEL_AS = f"{self.MODELS_FOLDER}/model_{self.EXP_ID}.pth"
-        self.LOSS_GRAPH = f'{self.RESULT_FOLDER}/loss_graph_{self.UID}.png'
-        self.MULTIPLE = f"{self.RESULT_FOLDER}/histo_multiple_{self.UID}.svg"
-        self.SUMMED = f"{self.RESULT_FOLDER}/histo_summed_{self.UID}.svg"
+        self.LOSS_GRAPH = f'{self.RESULT_FOLDER}/loss_graph_{self.LOAD_ID}.png'
+        self.MULTIPLE = f"{self.RESULT_FOLDER}/histo_multiple_{self.LOAD_ID}.svg"
+        self.SUMMED = f"{self.RESULT_FOLDER}/histo_summed_{self.LOAD_ID}.svg"
 
 
     def __str__(self) -> str:

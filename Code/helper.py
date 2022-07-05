@@ -30,11 +30,12 @@ def create_experiment_object(config: Configure,  model: SiameseNetwork) -> dict:
 
     return {
         "Model": config.SAVE_MODEL_AS,
-        "UID": config.UID,
-        "Transform": config.Transform.split("\n"),
+        "UID": config.LOAD_ID,
+        "Transform": str(config.Transform).split("\n"),
         "Layers": str(model).split("\n"),
         "Params": config.HYPER,
     }
+
 
 def save_model(cfg: Configure, SNN_model: SiameseNetwork):
     """Function that save the experiment data to the json file
@@ -46,11 +47,14 @@ def save_model(cfg: Configure, SNN_model: SiameseNetwork):
 
     torch.save(SNN_model, cfg.SAVE_MODEL_AS)
     print(f"Saving the model at: {cfg.SAVE_MODEL_AS}")
-    with open(cfg.SAVED_EXPERIMENTS, "w+") as se:
-        old_experiments = json.load(se)
+    with open(cfg.SAVED_EXPERIMENTS, "r") as se:
+        try:
+            old_experiments = json.load(se)
+        except json.JSONDecodeError:
+            old_experiments = dict()
         old_experiments[cfg.EXP_ID] = create_experiment_object(cfg, SNN_model)
+    with open(cfg.SAVED_EXPERIMENTS, "w") as se:
         json.dump(old_experiments, se, indent=2)
-
 
 
 def print_results(conf_pred: torch.Tensor, conf_truth: torch.Tensor) -> None:
@@ -103,7 +107,7 @@ def confusion(prediction, truth):
 
 
 def save_plot(loss, file):
-    labels = ["Avg loss (Train)", "Avg loss (Val)"], 
+    labels = ["Avg loss (Train)", "Avg loss (Val)"],
     plt.title("Loss graph")
     plt.xlabel("Epochs")
     plt.xticks(np.arange(0, len(loss)+2, step=2))
