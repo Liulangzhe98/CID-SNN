@@ -1,3 +1,11 @@
+# Used for typing annotation
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from configure import Configure
+    from SNN import SiameseNetwork
+
 # Imports
 import torch
 import torchvision.transforms as tf
@@ -8,8 +16,7 @@ import statistics
 import math
 import json
 
-from SNN import SiameseNetwork
-from configure import Configure
+
 
 
 def my_transform(crops):
@@ -110,10 +117,10 @@ def save_plot(loss, file):
     labels = ["Avg loss (Train)", "Avg loss (Val)"],
     plt.title("Loss graph")
     plt.xlabel("Epochs")
-    plt.xticks(np.arange(0, len(loss)+2, step=2))
+    plt.xticks(np.arange(1, len(loss)+2, step=2))
     plt.ylabel("Loss")
-    plt.plot(loss)
-    plt.legend(labels)
+    plt.plot(range(1, len(loss)+1), loss)
+    plt.legend(*labels)
     plt.savefig(file)
 
 

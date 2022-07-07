@@ -2,6 +2,7 @@ import torch
 import torchvision.transforms as tf
 
 import json
+from helper import my_transform
 
 
 class Configure(object):
@@ -16,19 +17,23 @@ class Configure(object):
 
     possible_transforms = {
         "small":  tf.Compose([
-            tf.CenterCrop(100),
-            tf.ToTensor()
+            tf.FiveCrop(100),
+            tf.Lambda(my_transform),
+            # tf.ToTensor()
         ]),
         "medium": tf.Compose([
             tf.CenterCrop(200),
             tf.ToTensor()
         ]),
         "large":  tf.Compose([
-            tf.CenterCrop(800),
-            tf.ToTensor()
+            tf.FiveCrop(800),
+            tf.Lambda(my_transform),
+            # tf.CenterCrop(800),
+            # tf.Resize((800, 800)),
+            # tf.ToTensor()
         ]),
         "guru": tf.Compose([
-            tf.CenterCrop(800),
+            tf.CenterCrop(128),
             tf.ToTensor()
         ])
     }

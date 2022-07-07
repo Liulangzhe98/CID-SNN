@@ -1,3 +1,11 @@
+# Used for typing annotation
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from configure import Configure
+    from SNN import SiameseNetwork
+
 # Imports
 from torch.utils.data import DataLoader as DL
 
@@ -38,7 +46,6 @@ def test_model(net: SiameseNetwork, dataloader: DL,
             # Pass in the images into the network and obtain the outputs
             # The amount of images passed is equal to the batch size
             prediction = net(img0, img1)
-            difference = torch.tanh(prediction).item()
             difference = torch.clamp(prediction, max=0.99999).item()
             conf_truth.append(gt)
 

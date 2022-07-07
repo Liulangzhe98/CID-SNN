@@ -3,13 +3,14 @@ Papers-Files/
 Dresden/
 Code/.vscode/
 Code/.idea/
+Code/Utils/
 
 *.pgm
 *.png
-# SNN model
-*.pth 
 *.svg
 
+# SNN model
+*.pth 
 
 # ==== Git ignore template from the gitignore repo ====
 # Byte-compiled / optimized / DLL files

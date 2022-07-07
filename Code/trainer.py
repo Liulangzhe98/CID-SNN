@@ -1,3 +1,12 @@
+# Used for typing annotation
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from configure import Configure
+    from SNN import SiameseNetwork
+
+
 # Imports
 from torch.utils.data import DataLoader as DL
 from torch import optim, device

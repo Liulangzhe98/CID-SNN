@@ -165,8 +165,8 @@ class SiameseNetwork(nn.Module):
         """
 
         output = self.CNN(input_image)
-        # output = output.view(output.size()[0], -1)
-        output = flatten(output, start_dim=1)
+        output = output.view(output.size()[0], -1)
+        # output = flatten(output, start_dim=1)
         output = self.FC(output)
 
         return output
@@ -183,13 +183,14 @@ class SiameseNetwork(nn.Module):
         """
         # In this function we pass in both images and obtain both vectors
         # which are returned
-        output1 = self.forward_once(input1)
+        bs, ncrops, c, h, w = input1.size()
+        output1 = self.forward_once(input1.view(-1, c, h, w))
 
-        output2 = self.forward_once(input2)
+        output2 = self.forward_once(input2.view(-1, c, h, w))
 
         # Calculated the similarity through the euclidean distance
         euclidean_distance = F.pairwise_distance(
-            output1, output2, keepdim=True)
+            output1, output2, keepdim=True).view(bs, ncrops, -1).mean(1)
 
         return clamp(euclidean_distance, max=1)
 
@@ -242,26 +243,26 @@ class SiameseNetwork(nn.Module):
 
     def large(self):
         self.CNN = nn.Sequential(
-            nn.Conv2d(1, 96, kernel_size=20, stride=5),
+            nn.Conv2d(1, 96, kernel_size=7, stride=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2),
 
-            nn.Conv2d(96, 256, kernel_size=10, stride=4),
+            nn.Conv2d(96, 256, kernel_size=5, stride=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2, stride=2),
 
-            nn.Conv2d(256, 384, kernel_size=2, stride=1),
+            nn.Conv2d(256, 384, kernel_size=5, stride=2),
             nn.ReLU(inplace=True)
         )
 
         self.FC = nn.Sequential(
-            nn.Linear(24576, 8192),
+            nn.Linear(3456, 4096),
             nn.ReLU(inplace=True),
 
-            nn.Linear(8192, 1024),
+            nn.Linear(4096, 2048),
             nn.ReLU(inplace=True),
 
-            nn.Linear(1024, 128)
+            nn.Linear(2048, 1024)
         )
 
     # Credits: Guru
@@ -290,15 +291,15 @@ class SiameseNetwork(nn.Module):
             nn.MaxPool2d(2, 2),
 
             # Block 4
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=(1, 1)),
-            nn.BatchNorm2d(num_features=64),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(1, 1)),
+            nn.BatchNorm2d(num_features=128),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(2, 2)
         )
 
         self.FC = nn.Sequential(
 
-            nn.Linear(in_features=40000, out_features=10240),
+            nn.Linear(in_features=2048, out_features=1024),
             nn.Tanh(),
             nn.Dropout(p=0.3)
         )
