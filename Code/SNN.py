@@ -1,15 +1,14 @@
+# Used for typing annotation
+from typing import Tuple
+
 # Imports
-
-
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.transforms as tf
 from torch.utils.data import Dataset
-from torch import Tensor, flatten, clamp
+from torch import Tensor, clamp
 
 import multiprocessing
 import random
-from typing import Tuple
 from pathlib import Path
 from PIL import Image
 
@@ -71,7 +70,7 @@ class SNNDataset(Dataset):
             self.dict[label] = [idx]
 
         # Open image and convert to greyscale and store in RAM
-        img0 = Image.open(path).convert("L")
+        img0 = Image.open(path)
         self.images[path] = (self.transform(img0))
 
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor, Tensor, str, str]:
@@ -114,21 +113,21 @@ class SNNDataset(Dataset):
         # Perform Vertical or Horizontal flip
         # Half of the batches will be flipped ->
         #   (50% Not flipped, 25% Horizontal flip, 25% Vertical flip)
-        if random.randint(0, 1):
-            if random.randint(0, 1):
-                rotation = tf.RandomHorizontalFlip(p=1)
-                img0 = rotation(img0)
-                img1 = rotation(img1)
-            else:
-                rotation = tf.RandomVerticalFlip(p=1)
-                img0 = rotation(img0)
-                img1 = rotation(img1)
+        # if random.randint(0, 1):
+        # if random.randint(0, 1):
+        #rotation = tf.RandomHorizontalFlip(p=1)
+        #img0 = rotation(img0)
+        #img1 = rotation(img1)
+        # else:
+        #rotation = tf.RandomVerticalFlip(p=1)
+        #img0 = rotation(img0)
+        #img1 = rotation(img1)
 
         return img0, img1, ground_truth, f_name0, f_name1
 
     def __len__(self) -> int:
         """Denotes the total number of samples
-
+25067808
         Returns:
             int: Return the total number of samples
         """
@@ -136,9 +135,10 @@ class SNNDataset(Dataset):
         return len(self.image_paths)
 
 
-# create the Siamese Neural Network
 class SiameseNetwork(nn.Module):
     """ The siamese neural network representation as a class """
+
+    layers = ["small", "medium", "large", "color"]
 
     def __init__(self, size: str) -> None:
         """ Initialization
@@ -183,18 +183,14 @@ class SiameseNetwork(nn.Module):
         """
         # In this function we pass in both images and obtain both vectors
         # which are returned
-        bs, ncrops, c, h, w = input1.size()
-        output1 = self.forward_once(input1.view(-1, c, h, w))
-
-        output2 = self.forward_once(input2.view(-1, c, h, w))
-
+        output1 = self.forward_once(input1)
+        output2 = self.forward_once(input2)
         # Calculated the similarity through the euclidean distance
         euclidean_distance = F.pairwise_distance(
-            output1, output2, keepdim=True).view(bs, ncrops, -1).mean(1)
-
+            output1, output2, keepdim=True)
         return clamp(euclidean_distance, max=1)
 
-    # LAYERS, These should correspond with the option in the argument parser
+    # LAYERS, These should correspond with the options in self.layers
     def small(self):
         self.CNN = nn.Sequential(
             nn.Conv2d(1, 96, kernel_size=11, stride=4),
@@ -243,7 +239,31 @@ class SiameseNetwork(nn.Module):
 
     def large(self):
         self.CNN = nn.Sequential(
-            nn.Conv2d(1, 96, kernel_size=7, stride=1),
+            nn.Conv2d(1, 96, kernel_size=15, stride=5),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, stride=2),
+
+            nn.Conv2d(96, 256, kernel_size=10, stride=4),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(256, 384, kernel_size=5, stride=1),
+            nn.ReLU(inplace=True),
+        )
+
+        self.FC = nn.Sequential(
+            nn.Linear(9600, 8192),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(8192, 2048),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(2048, 1024)
+        )
+
+    def color(self):
+        self.CNN = nn.Sequential(
+            nn.Conv2d(3, 96, kernel_size=7, stride=1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2),
 
@@ -252,54 +272,18 @@ class SiameseNetwork(nn.Module):
             nn.MaxPool2d(2, stride=2),
 
             nn.Conv2d(256, 384, kernel_size=5, stride=2),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(384, 512, kernel_size=5, stride=2),
             nn.ReLU(inplace=True)
         )
 
         self.FC = nn.Sequential(
-            nn.Linear(3456, 4096),
+            nn.Linear(131072, 4096),
             nn.ReLU(inplace=True),
 
             nn.Linear(4096, 2048),
             nn.ReLU(inplace=True),
 
             nn.Linear(2048, 1024)
-        )
-
-    # Credits: Guru
-    def guru(self):
-        self.CNN = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=96, kernel_size=(
-                7, 7), padding=(3, 3), stride=(2, 2)),
-
-            # Block 1
-            nn.BatchNorm2d(num_features=96),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-
-            # Block 2
-            nn.Conv2d(in_channels=96, out_channels=64,
-                      kernel_size=(5, 5), padding=(2, 2)),
-            nn.BatchNorm2d(num_features=64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-
-            # Block 3
-            nn.Conv2d(in_channels=64, out_channels=64,
-                      kernel_size=(5, 5), padding=(2, 2)),
-            nn.BatchNorm2d(num_features=64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-
-            # Block 4
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(1, 1)),
-            nn.BatchNorm2d(num_features=128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2)
-        )
-
-        self.FC = nn.Sequential(
-
-            nn.Linear(in_features=2048, out_features=1024),
-            nn.Tanh(),
-            nn.Dropout(p=0.3)
         )

@@ -31,7 +31,7 @@ def test_model(net: SiameseNetwork, dataloader: DL,
     net.train(False)
     conf_truth = []
     conf_pred = []
-    epsilon = 0.5
+    epsilon = 0.63
     DEVICE = config.DEVICE
 
     models_checked = defaultdict(lambda: defaultdict(list))
@@ -67,6 +67,10 @@ def test_model(net: SiameseNetwork, dataloader: DL,
     multiple_histo(models_checked, epsilon, config.MULTIPLE)
     summed_histo(models_checked["Summed"], epsilon, config.SUMMED)
     print_results(torch.Tensor(conf_pred), torch.Tensor(conf_truth))
+
+    # print(f"Same: {models_checked['Summed']['same']}")
+    # print(f"Diff: {models_checked['Summed']['diff']}")
+    print(find_threshold(models_checked['Summed']))
 
 def preload_testing(transformation: tf, test_set: list) -> SNNDataset:
     """Wrapper for the preloading of training/validation images

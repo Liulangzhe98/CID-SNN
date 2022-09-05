@@ -1,6 +1,6 @@
 # Imports
-from torch.utils.data import DataLoader as DL
 import torch
+from torch.utils.data import DataLoader as DL
 
 from argparse import ArgumentParser, Namespace
 from SNN import *
@@ -17,21 +17,20 @@ def create_arg_parser() -> Namespace:
     Returns:
         Namespace: Namespace of all option
     """
-
-    parser = ArgumentParser(description="SNN model for camera identification")
+    parser = ArgumentParser(description="Train or load a siamese neural network for camera identification")
     parser.add_argument("--dev", action="store_true",
                         help="Runs in development mode")
-    parser.add_argument("--size", default="small", const="small",
-                        nargs="?", choices=["small", "medium", "large", "guru"],
-                        help="Runs with larger cropped images")
-    parser.add_argument("--mode", default="create", const="create",
+    parser.add_argument("--size", default="small", const="small",  required=True,
+                        nargs="?", choices=SiameseNetwork.layers,
+                        help="Runs with different transformations on the images and different layers in the CNN")
+    parser.add_argument("--mode", default="create", const="create",  required=True,
                         nargs="?", choices=["create", "test", "both"],
                         help="Create/test model or do both (default: %(default)s)")
 
     parser.add_argument("--save", action="store_true",
                         help="Stores the model in the Models folder and keeps track of the parameters used")
     parser.add_argument("--load", nargs="?", const=None, default=None,
-                        help="Loads the model in the Models folder and keeps track of the parameters used")
+                        help="Loads the model from the Models folder")
     parser.add_argument("--ID", nargs=1, required=True,
                         help="Used for storing the log ID into the save file")
 
@@ -86,7 +85,7 @@ def main(args: Namespace) -> None:
 
     # Training and testing of the model
     if getattr(args, "mode") in ["create", "both"]:
-        train_dl = DL(train_data, shuffle=True, num_workers=8, batch_size=25)
+        train_dl = DL(train_data, shuffle=True, num_workers=8, batch_size=15)
         valid_dl = DL(valid_data, shuffle=False, num_workers=8, batch_size=8)
 
         train_model(SNN_model, train_dl, valid_dl, config)
@@ -101,7 +100,7 @@ def main(args: Namespace) -> None:
         # Loading a pretrained model when specified
         if getattr(args, "load"):
             SNN_model = torch.load(config.loaded_model,
-                                   map_location=config["DEVICE"])
+                                   map_location=config.DEVICE)
         test_model(SNN_model, test_dl, config)
 
 if __name__ == "__main__":

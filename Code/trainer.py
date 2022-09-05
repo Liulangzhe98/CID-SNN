@@ -6,14 +6,13 @@ if TYPE_CHECKING:
     from configure import Configure
     from SNN import SiameseNetwork
 
-
 # Imports
 from torch.utils.data import DataLoader as DL
 from torch import optim, device
 import torch.nn as nn
 
-
 import time
+from numpy import mean
 
 from SNN import *
 from helper import *
@@ -110,18 +109,42 @@ def validation(net: SiameseNetwork, v_data: DL, DEVICE: device) -> float:
     return running_vloss / i
 
 
-def finished_training(loss_history: list, config: Configure) -> None:
-    save_plot(loss_history, config.LOSS_GRAPH)
+def finished_training(loss_history: list, mean_history: list,  config: Configure) -> None:
+    """Function to handle the termination of the training
+
+    Args:
+        loss_history (list): Loss scores of the model
+        mean_history (list): Mean loss score of the model
+        config (Configure): Configuration class object
+    """
+    full_list = [(*x, *y) for x, y in zip(loss_history, mean_history)]
+    labels = ["Avg loss (Train)", "Avg loss (Val)",
+              "Mean over last 5 epochs (Train)", "Mean over last 5 epochs (Val)"],
+    save_loss_graph(full_list, labels, config.LOSS_GRAPH)
 
 
 def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config: Configure) -> None:
+    """Main function for training the model
+
+    Args:
+        net (SiameseNetwork): The SNN class object
+        t_data (DL): Testing set data loader
+        v_data (DL): Validation set data loader
+        config (Configure): Configuration class object
+    """
     MAX_EPOCH = config.MAX_EPOCH
     optimizer = optim.Adam(net.parameters(), lr=config.HYPER["LR"])
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
         optimizer, gamma=config.HYPER["DECAY"])
 
     loss_history = []
+    mean_history = []
 
+    prev_mean = 1
+    delta_loss = 1
+
+    # 0: patience, 1: delta
+    EARLY_STOPPING_MODE = 1
     the_last_loss = 100
     patience = 3
     trigger_times = 0
@@ -131,7 +154,6 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config: Configure) 
 
     # Iterate throught the epochs
     for epoch in range(MAX_EPOCH):
-        # random.seed(22052022) # TODO: remove, was only for debugging
         print(
             f"Currently at epoch {epoch+1:>{len(str(MAX_EPOCH))}}/{MAX_EPOCH} |"
             f" Total time spent: {time.time()-start_time:>7.2f}s")
@@ -145,23 +167,37 @@ def train_model(net: SiameseNetwork, t_data: DL, v_data: DL, config: Configure) 
 
         lr_scheduler.step()
         loss_history.append((avg_loss, avg_vloss.item()))
-        print(f"Loss T: {avg_loss:.4f} | Loss V: {avg_vloss:.4f}")
+        if epoch >= 4:
+            means = mean(loss_history[-5:], axis=0)
 
-        if avg_vloss > the_last_loss:
-            trigger_times += 1
-            print("Trigger Times:", trigger_times)
-
-            if trigger_times >= patience:
-                print("Early Stopping!\nStart to test process.")
-                finished_training(loss_history, config)
-                return
+            mean_history.append(means)
+            delta_loss = prev_mean - means[1]
+            prev_mean = means[1]
         else:
-            trigger_times = 0
-        the_last_loss = avg_vloss
+            mean_history.append((np.NaN, np.NaN))
 
+        print(
+            f"Loss T: {avg_loss:.4f} | Loss V: {avg_vloss:.4f} | Delta loss: {delta_loss if delta_loss < 1 else 'Need 5 epochs'}")
+        if EARLY_STOPPING_MODE == 0:
+            if avg_vloss > the_last_loss:
+                trigger_times += 1
+                print("Trigger Times:", trigger_times)
+
+                if trigger_times >= patience:
+                    print("Early Stopping!\nStart to test process.")
+                    finished_training(loss_history, mean_history, config)
+                    return
+            else:
+                trigger_times = 0
+            the_last_loss = avg_vloss
+        elif EARLY_STOPPING_MODE == 1:
+            if (delta_loss > 0 and delta_loss < 0.0005):
+                print("Early Stopping!\nStart to test process.")
+                finished_training(loss_history, mean_history, config)
+                return
         print()
 
-    finished_training(loss_history, config)
+    finished_training(loss_history, mean_history, config)
 
 
 def preload_training(transformation: tf, train_set: list,

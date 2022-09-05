@@ -1,6 +1,6 @@
 # Used for typing annotation
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from configure import Configure
@@ -8,20 +8,12 @@ if TYPE_CHECKING:
 
 # Imports
 import torch
-import torchvision.transforms as tf
 
 import matplotlib.pyplot as plt
 import numpy as np
 import statistics
 import math
 import json
-
-
-
-
-def my_transform(crops):
-    """ Function used only for center cropping the images"""
-    return torch.stack([tf.ToTensor()(crop) for crop in crops])
 
 
 def create_experiment_object(config: Configure,  model: SiameseNetwork) -> dict:
@@ -44,7 +36,7 @@ def create_experiment_object(config: Configure,  model: SiameseNetwork) -> dict:
     }
 
 
-def save_model(cfg: Configure, SNN_model: SiameseNetwork):
+def save_model(cfg: Configure, SNN_model: SiameseNetwork) -> None:
     """Function that save the experiment data to the json file
 
     Args:
@@ -62,6 +54,41 @@ def save_model(cfg: Configure, SNN_model: SiameseNetwork):
         old_experiments[cfg.EXP_ID] = create_experiment_object(cfg, SNN_model)
     with open(cfg.SAVED_EXPERIMENTS, "w") as se:
         json.dump(old_experiments, se, indent=2)
+
+
+def find_threshold(summed: dict) -> None:
+    """Finds the best threshold value used for binary class prediction
+
+    Args:
+        same (list): _description_
+        diff (list): _description_
+    """
+    same = summed['same']
+    diff = summed['diff']
+
+    highest_f = (0, 0)
+    highest_p = (0, 0)
+    highest_r = (0, 0)
+    for e in range(10, 100):
+        e /= 100
+        tp = len([x for x in same if x < e])
+        fn = len(same) - tp
+        fp = len([x for x in diff if x < e])
+        tn = len(diff) - fp
+        prec = tp/(tp+fp)
+        recall = tp/(tp+fn)
+        fscore = 2*(recall*prec)/(recall+prec)
+
+        if fscore > highest_f[0]:
+            highest_f = (fscore, e)
+        if prec > highest_p[0]:
+            highest_p = (prec, e)
+        if recall > highest_r[0]:
+            highest_r = (recall, e)
+
+    print(f"The highest precision: {highest_p}")
+    print(f"The highest recall   : {highest_r}")
+    print(f"The highest fscore   : {highest_f}")
 
 
 def print_results(conf_pred: torch.Tensor, conf_truth: torch.Tensor) -> None:
@@ -84,7 +111,7 @@ def print_results(conf_pred: torch.Tensor, conf_truth: torch.Tensor) -> None:
     print(f"Fscore: {2*(recall*prec)/(recall+prec):>7.4%}")
 
 
-def confusion(prediction, truth):
+def confusion(prediction: torch.Tensor, truth: torch.Tensor) -> Tuple[int, int, int, int]:
     """ Returns the confusion matrix for the values in the `prediction` and `truth`
     tensors, i.e. the amount of positions where the values of `prediction`
     and `truth` are
@@ -113,18 +140,31 @@ def confusion(prediction, truth):
     return true_positives, false_positives, true_negatives, false_negatives
 
 
-def save_plot(loss, file):
-    labels = ["Avg loss (Train)", "Avg loss (Val)"],
+def save_loss_graph(data: list, labels: list, file_path: str):    
+    """Creates and saves the loss graph made during the training of the model
+
+    Args:
+        data (list): Data points of the loss scores
+        labels (list): Labels used for the graphs
+        file_path (str): Path to the file
+    """
     plt.title("Loss graph")
     plt.xlabel("Epochs")
-    plt.xticks(np.arange(1, len(loss)+2, step=2))
+    plt.xticks(np.arange(1, len(data)+2, step=2))
     plt.ylabel("Loss")
-    plt.plot(range(1, len(loss)+1), loss)
+    plt.plot(range(1, len(data)+1), data)
     plt.legend(*labels)
-    plt.savefig(file)
+    plt.savefig(file_path)
 
 
-def multiple_histo(models_checked: dict, EPS, file):
+def multiple_histo(models_checked: dict, EPS:float, file_path: str):
+    """Creates and saves the similarity histograms of multiple cameras
+
+    Args:
+        models_checked (dict): Similartiry scores grouped by camera model
+        EPS (float): Threshold value used for binary class prediction
+        file_path (str): Path to the file
+    """    
     amount = len(models_checked.keys())
     amount = 10
 
@@ -136,7 +176,6 @@ def multiple_histo(models_checked: dict, EPS, file):
 
     bin_size = 0.10
 
-    # Matplotlib magic for making the histograms
     # The histograms are stacked vertically, so they can be presented as an appendix
     for e_out, (k, v) in enumerate(list(models_checked.items())[:amount]):
 
@@ -171,25 +210,35 @@ def multiple_histo(models_checked: dict, EPS, file):
 
     fig.tight_layout()
 
-    plt.savefig(file)
+    plt.savefig(file_path)
 
 
-def summed_histo(summed: dict, EPS, file):
+def summed_histo(summed: dict, EPS: float, file_path: str):
+    """Creates and saves the similarity histograms summed together
+
+    Args:
+        models_checked (dict): Similartiry scores grouped by camera model
+        EPS (float): Threshold value used for binary class prediction
+        file_path (str): Path to the file
+    """    
     bin_size = 0.05
     fig, axs = plt.subplots(2, 1, sharey="all")
     fig.set_size_inches(20, 15)
     fig.suptitle(f"Validation histograms of all cameras summed together")
     plt.rcParams["font.family"] = "monospace"
 
-    # Matplotlib magic for making the summed histograms with the "confusion matrix"
+    # Summed histograms are divided into same and different camera pairs
+    # Color scheme is to visualize the confusion matrix
     for e, (k, values) in enumerate(summed.items()):
         ax_plot = axs[e]
         ax_plot.set_title(
             f"Histogram of {'different' if k == 'diff' else k} camera pairs \n"
             f"(N = {len(values)})")
-        ax_plot.axvspan((1-e)/2, (1-e)/2+0.5,
+
+        ax_plot.axvspan(EPS*e, min(1, EPS+e),
+                        facecolor="lightgreen", alpha=0.5)
+        ax_plot.axvspan(EPS*(1-e), max(EPS, 1-e),
                         facecolor="lightcoral", alpha=0.5)
-        ax_plot.axvspan(e/2, e/2+0.5, facecolor="lightgreen", alpha=0.5)
 
         try:
             mean, std = statistics.mean(values), statistics.stdev(values)
@@ -214,4 +263,4 @@ def summed_histo(summed: dict, EPS, file):
         ax.set(xlabel="Distance", ylabel="Amount ")
 
     fig.tight_layout()
-    plt.savefig(file)
+    plt.savefig(file_path)
